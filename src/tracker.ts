@@ -171,7 +171,8 @@ export class Tracker {
       slippage: slippagePct,
     });
 
-    // Build/send with one retry on blockhash expiration
+    // Build/send with one retry on blockhash expiration and a light status poll to reduce RPC churn
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     let attempt = 0;
     while (true) {
       attempt++;
@@ -189,18 +190,32 @@ export class Tracker {
         maxRetries: 3,
       });
       logger.info('Sell submitted', { sig, attempt });
-      try {
-        await this.connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
-        logger.info('Sell confirmed', { sig });
-        break;
-      } catch (e) {
-        const msg = String(e);
-        if (attempt < 2 && msg.includes('block height exceeded')) {
-          logger.warn('Resubmitting due to expired blockhash', { sig });
-          continue;
+      // poll signature status with modest backoff
+      const start = Date.now();
+      let delay = 300;
+      while (true) {
+        const st = await this.connection.getSignatureStatuses([sig]);
+        const s = st.value[0];
+        if (s?.confirmationStatus === 'confirmed' || s?.confirmationStatus === 'finalized') {
+          logger.info('Sell confirmed', { sig });
+          attempt = 99; // exit outer loop
+          break;
         }
-        throw e;
+        if (s?.err) throw new Error(`Tx error: ${JSON.stringify(s.err)}`);
+        if (Date.now() - start > 20_000) {
+          // treat as likely expired
+          throw new Error('block height exceeded');
+        }
+        await sleep(delay);
+        delay = Math.min(1000, Math.floor(delay * 1.3));
       }
+      if (attempt >= 99) break;
+      // resubmit on expiry once
+      if (attempt < 2) {
+        logger.warn('Resubmitting due to slow confirmation', { attempt });
+        continue;
+      }
+      break;
     }
     // Ensure position is removed after a successful sell to prevent re-evaluation
     this.positions.close(pos.mint);

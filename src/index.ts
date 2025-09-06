@@ -62,25 +62,7 @@ async function main() {
       const mint = new PublicKey(evt.mint);
       try {
         const tokens = new BN(evt.tokenDelta.toString());
-        // Prefer event-derived curve cost (excludes tx fee + ATA rent); else compute via SDK
-        let basis = new BN((evt.curveCostLamports ?? 0n).toString());
-        let basisSource = 'event-curve-cost';
-        if (basis.isZero()) {
-          if (tracker) {
-            basis = await tracker.getSdkCostBasis(mint, tokens);
-          } else {
-            const buyState = await sdk.fetchBuyState(mint, kp.publicKey);
-            const mintSupply = buyState.bondingCurve.tokenTotalSupply;
-            basis = getBuySolAmountFromTokenAmount({
-              global,
-              feeConfig,
-              mintSupply,
-              bondingCurve: buyState.bondingCurve,
-              amount: tokens,
-            });
-          }
-          basisSource = 'sdk-quote';
-        }
+        const basis = new BN((evt.solCostLamports ?? 0n).toString());
         const pos = {
           mint,
           openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
@@ -94,19 +76,17 @@ async function main() {
           tokens: pos.tokens.toString(),
           costLamports: pos.costLamports.toString(),
           signature: evt.signature,
-          basisSource,
-          eventSolCost: evt.solCostLamports?.toString(),
+          basisSource: 'parsed-tx',
           eventTxFee: evt.txFeeLamports?.toString(),
-          eventCurveCost: evt.curveCostLamports?.toString(),
         });
       } catch (e) {
-        logger.warn('Failed to compute buy basis; falling back to balance delta', { err: String(e) });
+        logger.warn('Failed to open position (unexpected)', { err: String(e) });
         const pos = {
           mint,
           openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
           openedSig: evt.signature,
           tokens: new BN(evt.tokenDelta.toString()),
-          costLamports: new BN((evt.curveCostLamports ?? evt.solCostLamports).toString()),
+          costLamports: new BN((evt.solCostLamports ?? 0n).toString()),
         };
         positions.upsert(pos);
       }

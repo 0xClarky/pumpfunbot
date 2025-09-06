@@ -1,6 +1,6 @@
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { PUMP_PROGRAM_ID, PUMP_AMM_PROGRAM_ID } from '@pump-fun/pump-sdk';
+import { PUMP_PROGRAM_ID, PUMP_AMM_PROGRAM_ID, bondingCurvePda } from '@pump-fun/pump-sdk';
 import { logger } from './logger';
 
 export type BuyEvent = {
@@ -43,16 +43,7 @@ function parseBuyEvent(
   const walletIndex = findWalletIndex(tx, wallet);
   if (walletIndex < 0) return null;
 
-  // SOL delta (positive lamports spent)
-  const preLamports = BigInt(tx.meta.preBalances?.[walletIndex] ?? 0);
-  const postLamports = BigInt(tx.meta.postBalances?.[walletIndex] ?? 0);
-  const solCostLamports = preLamports > postLamports ? preLamports - postLamports : 0n;
   const txFeeLamports = BigInt(tx.meta.fee ?? 0);
-  // Compute ATA rent deposit (if ATA was created during this tx)
-  let ataRentLamports = 0n;
-  try {
-    // We can compute ATA only once we know the mint. For now, defer and adjust below.
-  } catch {}
 
   // Token delta for owner=wallet; look for positive increase
   const preTB = tx.meta.preTokenBalances || [];
@@ -90,19 +81,52 @@ function parseBuyEvent(
 
   const sig = tx.transaction.signatures?.[0];
   if (!sig) return null;
-  // After choosing mint, compute ATA and subtract rent if present
-  let finalCurveCost = solCostLamports > txFeeLamports ? solCostLamports - txFeeLamports : 0n;
+  // Compute accurate SOL cost by summing wallet -> destination transfers in inner instructions,
+  // excluding ATA rent deposit. This captures bonding curve + protocol fee, not network fee.
+  let parsedCost = 0n;
   try {
-    const ata = getAssociatedTokenAddressSync(new PublicKey(chosenMint), wallet, true);
-    const keys = tx.transaction.message.accountKeys.map((k: any) => ('pubkey' in k ? k.pubkey.toBase58() : k.toString()));
-    const ataIdx = keys.indexOf(ata.toBase58());
-    if (ataIdx >= 0) {
-      const pre = BigInt(tx.meta.preBalances?.[ataIdx] ?? 0);
-      const post = BigInt(tx.meta.postBalances?.[ataIdx] ?? 0);
-      if (post > pre) ataRentLamports = post - pre;
+    const ata = getAssociatedTokenAddressSync(new PublicKey(chosenMint), wallet, true).toBase58();
+    const walletStr = wallet.toBase58();
+    for (const inner of tx.meta.innerInstructions || []) {
+      for (const ix of (inner as any).instructions || []) {
+        const parsed = (ix as any).parsed;
+        if (!parsed || parsed.type !== 'transfer') continue;
+        const info = parsed.info || {};
+        if (info.source === walletStr && info.destination && info.lamports) {
+          const dest = String(info.destination);
+          if (dest === ata) continue; // exclude ATA rent
+          parsedCost += BigInt(info.lamports);
+        }
+      }
     }
   } catch {}
-  if (finalCurveCost > ataRentLamports) finalCurveCost -= ataRentLamports;
+
+  // As a fallback, use lamport delta minus tx fee and minus any ATA rent we can infer
+  let fallbackCost = 0n;
+  try {
+    const preLamports = BigInt(tx.meta.preBalances?.[walletIndex] ?? 0);
+    const postLamports = BigInt(tx.meta.postBalances?.[walletIndex] ?? 0);
+    let delta = preLamports > postLamports ? preLamports - postLamports : 0n;
+    // subtract tx fee
+    if (delta > txFeeLamports) delta -= txFeeLamports;
+    // subtract ATA rent if present
+    try {
+      const ata = getAssociatedTokenAddressSync(new PublicKey(chosenMint), wallet, true).toBase58();
+      const keys = tx.transaction.message.accountKeys.map((k: any) => ('pubkey' in k ? k.pubkey.toBase58() : k.toString()));
+      const ataIdx = keys.indexOf(ata);
+      if (ataIdx >= 0) {
+        const pre = BigInt(tx.meta.preBalances?.[ataIdx] ?? 0);
+        const post = BigInt(tx.meta.postBalances?.[ataIdx] ?? 0);
+        if (post > pre) {
+          const rent = post - pre;
+          if (delta > rent) delta -= rent;
+        }
+      }
+    } catch {}
+    fallbackCost = delta;
+  } catch {}
+
+  const finalCurveCost = parsedCost > 0n ? parsedCost : fallbackCost;
 
   return {
     signature: sig,
@@ -110,7 +134,7 @@ function parseBuyEvent(
     blockTime: tx.blockTime ?? null,
     mint: chosenMint,
     tokenDelta: maxDelta,
-    solCostLamports,
+    solCostLamports: finalCurveCost,
     txFeeLamports,
     curveCostLamports: finalCurveCost,
   };

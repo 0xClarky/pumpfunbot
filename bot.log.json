@@ -33,3 +33,14 @@
 {"ts":"2025-09-06T04:42:40.699Z","level":"info","msg":"Sell confirmed","sig":"2TouTeH61ube3g1xX4vMHmQPQEaFU7d9R151qktYbcErHrMQzKyjBhGi1kG1Hb5fGED8d3ovvVMEKxqEHLRJH9aP"}
 {"ts":"2025-09-06T04:43:04.097Z","level":"info","msg":"Shutting down..."}
 {"ts":"2025-09-06T04:43:04.098Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-06T05:02:19.428Z","level":"info","msg":"Bot started","rpcUrl":"https://mainnet.helius-rpc.com/?api-key=ae38a585-1c2a-485b-b1a6-1ab9bdcec3b0","wsUrl":"wss://mainnet.helius-rpc.com/?api-key=ae38a585-1c2a-485b-b1a6-1ab9bdcec3b0","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.35,"slPct":-0.2,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-06T05:02:19.457Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-06T05:03:00.186Z","level":"info","msg":"Detected buy","signature":"3GJTB8tV4zbMw19Cugof9HU5d5fFgaouyzmwGPiMh49SZSWeFGxxcqoRWwRWBSqxohPdc4uPBjM5YpbG8zr8hg31","slot":364968196,"blockTime":1757134978,"mint":"8CJGxocRNDiJys2v5wgEcynMPTbyZVyDMvKxQKW2pump","tokenDelta":"31211612487","solCostLamports":"4544281"}
+{"ts":"2025-09-06T05:03:00.190Z","level":"info","msg":"Position opened","mint":"8CJGxocRNDiJys2v5wgEcynMPTbyZVyDMvKxQKW2pump","tokens":"31211612487","costLamports":"4544281","signature":"3GJTB8tV4zbMw19Cugof9HU5d5fFgaouyzmwGPiMh49SZSWeFGxxcqoRWwRWBSqxohPdc4uPBjM5YpbG8zr8hg31"}
+{"ts":"2025-09-06T05:03:01.214Z","level":"info","msg":"Track update","mint":"8CJGxocRNDiJys2v5wgEcynMPTbyZVyDMvKxQKW2pump","tokens":"31211612487","solOut":"2391430","cost":"4544281","pnlPct":"-0.4737","mcapLamports":"77593577256"}
+{"ts":"2025-09-06T05:03:01.486Z","level":"info","msg":"Sell submitted","sig":"2K69uE9e7Z3Pcvi3DKMnTncYFZEactaLkqjbVEV2cpsDZdNvV2sr9H36WvR1C4ieQ4fXuFybWVH6m7n6SaKnYLjr"}
+{"ts":"2025-09-06T05:04:02.130Z","level":"warn","msg":"Tracker loop error","err":"TransactionExpiredBlockheightExceededError: Signature 2K69uE9e7Z3Pcvi3DKMnTncYFZEactaLkqjbVEV2cpsDZdNvV2sr9H36WvR1C4ieQ4fXuFybWVH6m7n6SaKnYLjr has expired: block height exceeded."}
+{"ts":"2025-09-06T05:04:03.166Z","level":"info","msg":"Track update","mint":"8CJGxocRNDiJys2v5wgEcynMPTbyZVyDMvKxQKW2pump","tokens":"31211612487","solOut":"2395336","cost":"4544281","pnlPct":"-0.4729","mcapLamports":"77720291380"}
+{"ts":"2025-09-06T05:04:03.991Z","level":"info","msg":"Sell submitted","sig":"3bBG51mvNDhpTJVJCsZter8TaDeMRS3d6wLDiHLQi5YYTHgFxJD9LbyHEVKrs1xekLFnq7ZYBdpZGkCY6Hc7ABeF"}
+{"ts":"2025-09-06T05:04:33.452Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-06T05:04:33.453Z","level":"info","msg":"Shutting down..."}
