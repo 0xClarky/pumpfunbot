@@ -1,4 +1,5 @@
 import { Connection, PublicKey, ComputeBudgetProgram, VersionedTransaction, TransactionMessage, Keypair } from '@solana/web3.js';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import BN from 'bn.js';
 import { logger } from './logger';
 import { Positions, Position } from './positions';
@@ -13,6 +14,7 @@ type TrackerConfig = {
   sellEnabled: boolean;
   minHoldMs: number;
   trailingSlBps: number;
+  sellStrategy: 'fixed' | 'trailing';
 };
 
 export class Tracker {
@@ -69,10 +71,39 @@ export class Tracker {
     if (nowMs < (pos.openedAt * 1000 + this.cfg.minHoldMs)) {
       return;
     }
-    const { bondingCurveAccountInfo, bondingCurve } = await this.sdk.fetchSellState(
-      pos.mint,
-      this.wallet.publicKey,
-    );
+    // Fetch on-chain state with manual-close detection
+    let bondingCurveAccountInfo: any;
+    let bondingCurve: any;
+    try {
+      const sellState = await this.sdk.fetchSellState(pos.mint, this.wallet.publicKey);
+      bondingCurveAccountInfo = sellState.bondingCurveAccountInfo;
+      bondingCurve = sellState.bondingCurve;
+    } catch (e) {
+      const msg = String(e);
+      const manualClose =
+        msg.includes('Associated token account not found') ||
+        msg.includes('TokenAccountNotFoundError') ||
+        msg.includes('could not find account');
+      if (manualClose) {
+        logger.info('Position closed manually, removing from tracker', { mint: pos.mint.toBase58() });
+        this.positions.close(pos.mint);
+        return;
+      }
+      throw e;
+    }
+
+    // If ATA exists but balance is zero, treat as manually closed as well
+    try {
+      const ata = getAssociatedTokenAddressSync(pos.mint, this.wallet.publicKey, true);
+      const bal = await this.connection.getTokenAccountBalance(ata);
+      if (!bal?.value || bal.value.uiAmount === 0 || bal.value.amount === '0') {
+        logger.info('Position balance zero; removing from tracker', { mint: pos.mint.toBase58() });
+        this.positions.close(pos.mint);
+        return;
+      }
+    } catch (_) {
+      // ignore errors here; sellState succeeded so continue
+    }
     if (bondingCurve.complete) {
       // Migration/complete state — halt this position per SOW
       logger.warn('Position halted due to migration/complete', { mint: pos.mint.toBase58() });
@@ -120,44 +151,58 @@ export class Tracker {
       mcapSol: mcapSolStr,
     });
 
-    // Trailing stop logic
-    // 1) update peak if higher (or initialize on first tick)
-    if (!pos.peakSolOut || solOut.gt(pos.peakSolOut)) {
-      // Update only the peak value on the stored position to avoid altering tokens/cost
-      this.positions.update(pos.mint, { peakSolOut: solOut });
-      const trailNumer = 10000 - this.cfg.trailingSlBps;
-      const trigger = solOut.muln(trailNumer).divn(10000);
-      logger.info('Peak updated', {
-        mint: pos.mint.toBase58(),
-        peakSolOut: solOut.toString(),
-        trailingSlBps: this.cfg.trailingSlBps,
-        trailTrigger: trigger.toString(),
-      });
-      return; // don't sell in the same tick as peak update
+    if (this.cfg.sellStrategy === 'trailing') {
+      // Trailing stop logic
+      if (!pos.peakSolOut || solOut.gt(pos.peakSolOut)) {
+        this.positions.update(pos.mint, { peakSolOut: solOut });
+        const trailNumer = 10000 - this.cfg.trailingSlBps;
+        const trigger = solOut.muln(trailNumer).divn(10000);
+        logger.info('Peak updated', {
+          mint: pos.mint.toBase58(),
+          peakSolOut: solOut.toString(),
+          trailingSlBps: this.cfg.trailingSlBps,
+          trailTrigger: trigger.toString(),
+        });
+        return; // don't sell in the same tick as peak update
+      }
+      if (pos.peakSolOut) {
+        const trailNumer = 10000 - this.cfg.trailingSlBps;
+        const trigger = pos.peakSolOut.muln(trailNumer).divn(10000);
+        const key = pos.mint.toBase58();
+        if (solOut.lte(trigger)) {
+          if (!this.cfg.sellEnabled) {
+            logger.info('Sell condition met (dry-run)', { mint: key, reason: 'TSL', trailingSlBps: this.cfg.trailingSlBps });
+            return;
+          }
+          if (this.selling.has(key)) return;
+          this.selling.add(key);
+          try {
+            logger.info('Sell trigger', { mint: key, reason: 'TSL', trailingSlBps: this.cfg.trailingSlBps });
+            await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
+          } finally {
+            this.selling.delete(key);
+          }
+        }
+      }
+      return;
     }
 
-    // 2) compute trailing stop trigger and decide
-    if (pos.peakSolOut) {
-      const trailNumer = 10000 - this.cfg.trailingSlBps;
-      const trigger = pos.peakSolOut.muln(trailNumer).divn(10000);
+    // Fixed TP/SL strategy
+    if (pnlPct >= this.cfg.tpPct || pnlPct <= this.cfg.slPct) {
       const key = pos.mint.toBase58();
-      if (solOut.lte(trigger)) {
-        if (!this.cfg.sellEnabled) {
-          logger.info('Sell condition met (dry-run)', {
-            mint: key,
-            reason: 'TSL',
-            trailingSlBps: this.cfg.trailingSlBps,
-          });
-          return;
-        }
-        if (this.selling.has(key)) return;
-        this.selling.add(key);
-        try {
-          logger.info('Sell trigger', { mint: key, reason: 'TSL', trailingSlBps: this.cfg.trailingSlBps });
-          await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
-        } finally {
-          this.selling.delete(key);
-        }
+      if (!this.cfg.sellEnabled) {
+        const reason = pnlPct >= this.cfg.tpPct ? 'TP' : 'SL';
+        logger.info('Sell condition met (dry-run)', { mint: key, reason, pnlPct: pnlPct.toFixed(4) });
+        return;
+      }
+      if (this.selling.has(key)) return;
+      this.selling.add(key);
+      try {
+        const reason = pnlPct >= this.cfg.tpPct ? 'TP' : 'SL';
+        logger.info('Sell trigger', { mint: key, reason, pnlPct: pnlPct.toFixed(4) });
+        await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
+      } finally {
+        this.selling.delete(key);
       }
     }
   }
@@ -232,12 +277,16 @@ export class Tracker {
       while (true) {
         const st = await this.connection.getSignatureStatuses([sig]);
         const s = st.value[0];
+        // Check for failure first: a tx can be finalized with an error
+        if (s?.err) {
+          logger.error('Sell transaction failed', { sig, err: s.err });
+          throw new Error(`Tx error: ${JSON.stringify(s.err)}`);
+        }
         if (s?.confirmationStatus === 'confirmed' || s?.confirmationStatus === 'finalized') {
-          logger.info('Sell confirmed', { sig });
+          logger.info('Sell confirmed', { sig, confirmationStatus: s.confirmationStatus });
           attempt = 99; // exit outer loop
           break;
         }
-        if (s?.err) throw new Error(`Tx error: ${JSON.stringify(s.err)}`);
         if (Date.now() - start > 20_000) {
           // treat as likely expired
           throw new Error('block height exceeded');

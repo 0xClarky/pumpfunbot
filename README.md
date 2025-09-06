@@ -38,6 +38,8 @@ Lightweight Solana bot that detects manual buys from your wallet, tracks PnL via
 - `SL_PCT`: Stop-loss percent as decimal (-0.2 = -20%).
 - `PRIORITY_FEE_SOL`: Priority fee in SOL (e.g., 0.01).
 - `SKIP_PREFLIGHT`: Use `true` for speed.
+- `SELL_STRATEGY`: `fixed` (TP/SL) or `trailing`.
+- `TRAILING_SL_BPS`: When `SELL_STRATEGY=trailing`, basis points for trail (e.g., 3000 = 30%).
 - `DETECTION_MODE`: `auto` (default), `ws`, or `poll`.
 - `POLL_INTERVAL_MS`: Polling cadence for fallback or poll-only.
 - `TRACKER_ENABLED`: Turn on/off PnL tracking loop.

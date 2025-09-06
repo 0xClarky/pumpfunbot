@@ -23,6 +23,8 @@ async function main() {
     wallet: kp.publicKey.toBase58(),
     tpPct: config.tpPct,
     slPct: config.slPct,
+    sellStrategy: config.sellStrategy,
+    trailingSlBps: config.trailingSlBps,
     maxSlippageBps: config.maxSlippageBps,
     priorityFeeSol: config.priorityFeeSol,
     skipPreflight: config.skipPreflight,
@@ -51,6 +53,7 @@ async function main() {
         sellEnabled: config.sellEnabled,
         minHoldMs: config.minHoldMs,
         trailingSlBps: config.trailingSlBps,
+        sellStrategy: config.sellStrategy,
       },
     );
     tracker.start();
