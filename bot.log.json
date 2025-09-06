@@ -6,3 +6,10 @@
 {"ts":"2025-09-06T00:47:42.425Z","level":"info","msg":"WS logs subscription active","id":0}
 {"ts":"2025-09-06T00:52:41.721Z","level":"info","msg":"Shutting down..."}
 {"ts":"2025-09-06T00:52:41.722Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-06T00:57:54.945Z","level":"info","msg":"Bot started","rpcUrl":"https://mainnet.helius-rpc.com/?api-key=ae38a585-1c2a-485b-b1a6-1ab9bdcec3b0","wsUrl":"wss://mainnet.helius-rpc.com/?api-key=ae38a585-1c2a-485b-b1a6-1ab9bdcec3b0","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.35,"slPct":-0.2,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-06T00:57:54.975Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-06T01:00:50.783Z","level":"info","msg":"Detected buy","signature":"5q7s3ot9jXWnYcRf9XDfTyaFs9FodG877LeVKQdk7y2htDoSBWGp8uLKfZHF6WK2vgmpxmQKtUPhFnBL6eHkYaK5","slot":364932009,"blockTime":1757120449,"mint":"3Bqxoar4ARjgkq4q6dG92X3kM4np8gEde2NFTW6npump","tokenDelta":"55362557500","solCostLamports":"4544281"}
+{"ts":"2025-09-06T01:00:50.784Z","level":"info","msg":"Position opened","mint":"3Bqxoar4ARjgkq4q6dG92X3kM4np8gEde2NFTW6npump","tokens":"55362557500","costLamports":"4544281","signature":"5q7s3ot9jXWnYcRf9XDfTyaFs9FodG877LeVKQdk7y2htDoSBWGp8uLKfZHF6WK2vgmpxmQKtUPhFnBL6eHkYaK5"}
+{"ts":"2025-09-06T01:00:59.196Z","level":"info","msg":"Track update","mint":"3Bqxoar4ARjgkq4q6dG92X3kM4np8gEde2NFTW6npump","tokens":"55362557500","solOut":"2840671","cost":"4544281","pnlPct":"-0.3749","mcapLamports":"51963497056"}
+{"ts":"2025-09-06T01:00:59.363Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-06T01:00:59.366Z","level":"info","msg":"Shutting down..."}
