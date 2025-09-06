@@ -38,6 +38,10 @@ Lightweight Solana bot that detects manual buys from your wallet, tracks PnL via
 - `SL_PCT`: Stop-loss percent as decimal (-0.2 = -20%).
 - `PRIORITY_FEE_SOL`: Priority fee in SOL (e.g., 0.01).
 - `SKIP_PREFLIGHT`: Use `true` for speed.
+- `DETECTION_MODE`: `auto` (default), `ws`, or `poll`.
+- `POLL_INTERVAL_MS`: Polling cadence for fallback or poll-only.
+- `TRACKER_ENABLED`: Turn on/off PnL tracking loop.
+- `SELL_ENABLED`: Allow automated sells when TP/SL hit.
 
 ### Notes
 
@@ -45,3 +49,11 @@ Lightweight Solana bot that detects manual buys from your wallet, tracks PnL via
 - Primary RPC: Helius (HTTP + WebSocket).
 - Logs stream to console and JSON file defined by `LOG_FILE`.
 
+### Docker
+
+Build and run:
+
+```bash
+docker build -t pumpfun-bot .
+docker run --rm --env-file .env pumpfun-bot
+```

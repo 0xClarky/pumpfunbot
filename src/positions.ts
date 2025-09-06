@@ -21,11 +21,21 @@ export class Positions {
   }
 
   upsert(pos: Position) {
-    this.byMint.set(pos.mint.toBase58(), pos);
+    const key = pos.mint.toBase58();
+    const existing = this.byMint.get(key);
+    if (existing) {
+      // Accumulate additional buys into same mint
+      existing.tokens = existing.tokens.add(pos.tokens);
+      existing.costLamports = existing.costLamports.add(pos.costLamports);
+      existing.openedSig = pos.openedSig; // latest buy signature
+      existing.openedAt = pos.openedAt;
+      this.byMint.set(key, existing);
+    } else {
+      this.byMint.set(key, pos);
+    }
   }
 
   close(mint: PublicKey) {
     this.byMint.delete(mint.toBase58());
   }
 }
-

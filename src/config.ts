@@ -15,6 +15,8 @@ export type Config = {
   skipPreflight: boolean;
   detectionMode: 'auto' | 'ws' | 'poll';
   pollIntervalMs: number;
+  trackerEnabled: boolean;
+  sellEnabled: boolean;
 };
 
 function parsePrivateKey(input?: string): Uint8Array {
@@ -63,6 +65,8 @@ export const config: Config = {
   skipPreflight: (process.env.SKIP_PREFLIGHT || 'true').toLowerCase() === 'true',
   detectionMode: ((process.env.DETECTION_MODE || 'auto') as any),
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 1000),
+  trackerEnabled: (process.env.TRACKER_ENABLED || 'true').toLowerCase() === 'true',
+  sellEnabled: (process.env.SELL_ENABLED || 'true').toLowerCase() === 'true',
 };
 
 export function validateConfig(cfg: Config) {

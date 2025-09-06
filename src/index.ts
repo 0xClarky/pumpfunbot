@@ -29,21 +29,25 @@ async function main() {
 
   const positions = new Positions();
 
-  const tracker = new Tracker(
-    connection,
-    kp,
-    positions,
-    {
-      tpPct: config.tpPct,
-      slPct: config.slPct,
-      maxSlippageBps: config.maxSlippageBps,
-      priorityFeeSol: config.priorityFeeSol,
-      skipPreflight: config.skipPreflight,
-    },
-  );
-  tracker.start();
+  let tracker: Tracker | null = null;
+  if (config.trackerEnabled) {
+    tracker = new Tracker(
+      connection,
+      kp,
+      positions,
+      {
+        tpPct: config.tpPct,
+        slPct: config.slPct,
+        maxSlippageBps: config.maxSlippageBps,
+        priorityFeeSol: config.priorityFeeSol,
+        skipPreflight: config.skipPreflight,
+        sellEnabled: config.sellEnabled,
+      },
+    );
+    tracker.start();
+  }
 
-  startBuyDetection({
+  const detector = startBuyDetection({
     connection,
     wallet: kp.publicKey,
     onBuy: (evt) => {
@@ -66,6 +70,22 @@ async function main() {
     pollMs: config.pollIntervalMs,
     mode: config.detectionMode,
   });
+
+  // Graceful shutdown
+  const shutdown = () => {
+    logger.info('Shutting down...');
+    try { detector.stop(); } catch {}
+    try { tracker?.stop(); } catch {}
+    setTimeout(() => process.exit(0), 200);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  const runFor = Number(process.env.RUN_FOR_SECONDS || 0);
+  if (runFor > 0) {
+    logger.info('Auto-shutdown scheduled', { seconds: runFor });
+    setTimeout(shutdown, runFor * 1000);
+  }
 }
 
 main().catch((e) => {

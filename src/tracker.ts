@@ -10,6 +10,7 @@ type TrackerConfig = {
   maxSlippageBps: number; // e.g., 1000
   priorityFeeSol: number; // e.g., 0.01
   skipPreflight: boolean;
+  sellEnabled: boolean;
 };
 
 export class Tracker {
@@ -17,6 +18,7 @@ export class Tracker {
   private sdk: PumpSdk;
   private globalCache: any | null = null;
   private feeCfgCache: any | null = null;
+  private selling = new Set<string>();
 
   constructor(
     private connection: Connection,
@@ -56,6 +58,12 @@ export class Tracker {
       pos.mint,
       this.wallet.publicKey,
     );
+    if (bondingCurve.complete) {
+      // Migration/complete state — halt this position per SOW
+      logger.warn('Position halted due to migration/complete', { mint: pos.mint.toBase58() });
+      this.positions.close(pos.mint);
+      return;
+    }
     const mintSupply = bondingCurve.tokenTotalSupply; // BN
 
     // SOL out if sell all now (after fees)
@@ -74,7 +82,14 @@ export class Tracker {
     });
 
     const pnlLamports = solOut.sub(pos.costLamports);
-    const pnlPct = pnlLamports.toNumber() / pos.costLamports.toNumber();
+    const pnlPct = pos.costLamports.isZero()
+      ? 0
+      : pnlLamports.toNumber() / pos.costLamports.toNumber();
+
+    // Approximate price and mcap in SOL for console readability
+    const priceLamportsPerToken = pos.tokens.isZero() ? new BN(0) : solOut.div(pos.tokens);
+    const priceSol = Number(priceLamportsPerToken.toString()) / 1e9;
+    const mcapSol = Number(mcap.toString()) / 1e9;
 
     logger.info('Track update', {
       mint: pos.mint.toBase58(),
@@ -83,10 +98,25 @@ export class Tracker {
       cost: pos.costLamports.toString(),
       pnlPct: pnlPct.toFixed(4),
       mcapLamports: mcap.toString(),
+      priceSol: priceSol.toFixed(10),
+      mcapSol: mcapSol.toFixed(2),
     });
 
     if (pnlPct >= this.cfg.tpPct || pnlPct <= this.cfg.slPct) {
-      await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
+      if (!this.cfg.sellEnabled) {
+        logger.info('Sell condition met (dry-run)', { mint: pos.mint.toBase58(), pnlPct: pnlPct.toFixed(4) });
+        return;
+      }
+      const key = pos.mint.toBase58();
+      if (this.selling.has(key)) return;
+      this.selling.add(key);
+      try {
+        await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
+        // Close position after confirmed sell
+        this.positions.close(pos.mint);
+      } finally {
+        this.selling.delete(key);
+      }
     }
   }
 
