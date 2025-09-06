@@ -7,6 +7,7 @@ export type Position = {
   openedSig: string;
   tokens: BN; // in base units
   costLamports: BN; // basis includes fee
+  peakSolOut?: BN; // highest observed expected SOL-out
 };
 
 export class Positions {
@@ -29,6 +30,11 @@ export class Positions {
       existing.costLamports = existing.costLamports.add(pos.costLamports);
       existing.openedSig = pos.openedSig; // latest buy signature
       existing.openedAt = pos.openedAt;
+      if (pos.peakSolOut) {
+        existing.peakSolOut = existing.peakSolOut && existing.peakSolOut.gt(pos.peakSolOut)
+          ? existing.peakSolOut
+          : pos.peakSolOut;
+      }
       this.byMint.set(key, existing);
     } else {
       this.byMint.set(key, pos);

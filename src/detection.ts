@@ -76,7 +76,6 @@ function parseBuyEvent(
   }
 
   if (!chosenMint || maxDelta <= 0n) return null; // ensures it's a buy (token increase)
-  if (solCostLamports <= 0n) return null; // ensure wallet actually paid SOL (filters transfers/airdrops)
   if (typeof tx.blockTime === 'number' && tx.blockTime < bootTime - 5) return null;
 
   const sig = tx.transaction.signatures?.[0];
@@ -127,6 +126,7 @@ function parseBuyEvent(
   } catch {}
 
   const finalCurveCost = parsedCost > 0n ? parsedCost : fallbackCost;
+  if (finalCurveCost <= 0n) return null; // ensure wallet actually paid SOL (filters transfers/airdrops)
 
   return {
     signature: sig,

@@ -12,6 +12,7 @@ type TrackerConfig = {
   skipPreflight: boolean;
   sellEnabled: boolean;
   minHoldMs: number;
+  trailingSlBps: number;
 };
 
 export class Tracker {
@@ -108,20 +109,44 @@ export class Tracker {
       mcapSol: mcapSol.toFixed(2),
     });
 
-    if (pnlPct >= this.cfg.tpPct || pnlPct <= this.cfg.slPct) {
-      if (!this.cfg.sellEnabled) {
-        logger.info('Sell condition met (dry-run)', { mint: pos.mint.toBase58(), pnlPct: pnlPct.toFixed(4) });
-        return;
-      }
+    // Trailing stop logic
+    // 1) update peak if higher (or initialize on first tick)
+    if (!pos.peakSolOut || solOut.gt(pos.peakSolOut)) {
+      pos.peakSolOut = solOut;
+      this.positions.upsert(pos);
+      const trailNumer = 10000 - this.cfg.trailingSlBps;
+      const trigger = pos.peakSolOut.muln(trailNumer).divn(10000);
+      logger.info('Peak updated', {
+        mint: pos.mint.toBase58(),
+        peakSolOut: pos.peakSolOut.toString(),
+        trailingSlBps: this.cfg.trailingSlBps,
+        trailTrigger: trigger.toString(),
+      });
+      return; // don't sell in the same tick as peak update
+    }
+
+    // 2) compute trailing stop trigger and decide
+    if (pos.peakSolOut) {
+      const trailNumer = 10000 - this.cfg.trailingSlBps;
+      const trigger = pos.peakSolOut.muln(trailNumer).divn(10000);
       const key = pos.mint.toBase58();
-      if (this.selling.has(key)) return;
-      this.selling.add(key);
-      try {
-        const reason = pnlPct >= this.cfg.tpPct ? 'TP' : 'SL';
-        logger.info('Sell trigger', { mint: key, reason, pnlPct: pnlPct.toFixed(4) });
-        await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
-      } finally {
-        this.selling.delete(key);
+      if (solOut.lte(trigger)) {
+        if (!this.cfg.sellEnabled) {
+          logger.info('Sell condition met (dry-run)', {
+            mint: key,
+            reason: 'TSL',
+            trailingSlBps: this.cfg.trailingSlBps,
+          });
+          return;
+        }
+        if (this.selling.has(key)) return;
+        this.selling.add(key);
+        try {
+          logger.info('Sell trigger', { mint: key, reason: 'TSL', trailingSlBps: this.cfg.trailingSlBps });
+          await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
+        } finally {
+          this.selling.delete(key);
+        }
       }
     }
   }

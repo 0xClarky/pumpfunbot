@@ -43,13 +43,14 @@ async function main() {
       kp,
       positions,
       {
-        tpPct: config.tpPct,
-        slPct: config.slPct,
+        tpPct: config.tpPct, // legacy, unused by trailing logic
+        slPct: config.slPct, // legacy, unused by trailing logic
         maxSlippageBps: config.maxSlippageBps,
         priorityFeeSol: config.priorityFeeSol,
         skipPreflight: config.skipPreflight,
         sellEnabled: config.sellEnabled,
         minHoldMs: config.minHoldMs,
+        trailingSlBps: config.trailingSlBps,
       },
     );
     tracker.start();

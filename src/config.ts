@@ -18,6 +18,7 @@ export type Config = {
   trackerEnabled: boolean;
   sellEnabled: boolean;
   minHoldMs: number; // grace period after buy before sell checks
+  trailingSlBps: number; // e.g., 3000 = 30%
 };
 
 function parsePrivateKey(input?: string): Uint8Array {
@@ -69,6 +70,7 @@ export const config: Config = {
   trackerEnabled: (process.env.TRACKER_ENABLED || 'true').toLowerCase() === 'true',
   sellEnabled: (process.env.SELL_ENABLED || 'true').toLowerCase() === 'true',
   minHoldMs: Number(process.env.MIN_HOLD_MS || 2000),
+  trailingSlBps: Number(process.env.TRAILING_SL_BPS || 3000),
 };
 
 export function validateConfig(cfg: Config) {
