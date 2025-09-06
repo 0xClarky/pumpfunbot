@@ -120,8 +120,6 @@ export class Tracker {
         const reason = pnlPct >= this.cfg.tpPct ? 'TP' : 'SL';
         logger.info('Sell trigger', { mint: key, reason, pnlPct: pnlPct.toFixed(4) });
         await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
-        // Close position after confirmed sell
-        this.positions.close(pos.mint);
       } finally {
         this.selling.delete(key);
       }
@@ -178,6 +176,9 @@ export class Tracker {
     logger.info('Sell submitted', { sig });
     await this.connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
     logger.info('Sell confirmed', { sig });
+    // Ensure position is removed after a successful sell to prevent re-evaluation
+    this.positions.close(pos.mint);
+    logger.info('Position closed', { mint: pos.mint.toBase58() });
   }
 
   private async loop() {

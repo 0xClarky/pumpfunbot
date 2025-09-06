@@ -65,6 +65,7 @@ async function main() {
           const tokens = new BN(evt.tokenDelta.toString());
           // Prefer precise curve cost from tx meta (excludes tx fee)
           let basis = new BN((evt.curveCostLamports ?? 0n).toString());
+          let basisSource = 'event-curve-cost';
           if (basis.isZero()) {
             // Fallback: compute theoretical basis from current curve state
             const buyState = await sdk.fetchBuyState(mint, kp.publicKey);
@@ -76,6 +77,7 @@ async function main() {
               bondingCurve: buyState.bondingCurve,
               amount: tokens,
             });
+            basisSource = 'sdk-quote';
           }
           const pos = {
             mint,
@@ -90,6 +92,10 @@ async function main() {
             tokens: pos.tokens.toString(),
             costLamports: pos.costLamports.toString(),
             signature: evt.signature,
+            basisSource,
+            eventSolCost: evt.solCostLamports?.toString(),
+            eventTxFee: evt.txFeeLamports?.toString(),
+            eventCurveCost: evt.curveCostLamports?.toString(),
           });
         } catch (e) {
           logger.warn('Failed to compute buy basis; falling back to balance delta', { err: String(e) });
