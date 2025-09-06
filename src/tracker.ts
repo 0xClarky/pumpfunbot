@@ -31,6 +31,14 @@ export class Tracker {
     this.sdk = new PumpSdk(connection);
   }
 
+  private lamportsToSolString(l: BN): string {
+    const LAMPORTS_PER_SOL = new BN(1_000_000_000);
+    const whole = l.div(LAMPORTS_PER_SOL);
+    const frac = l.mod(LAMPORTS_PER_SOL);
+    const fracStr = frac.toString().padStart(9, '0').replace(/0+$/, '');
+    return fracStr ? `${whole.toString()}.${fracStr}` : whole.toString();
+  }
+
   async start() {
     // Warm caches
     await this.ensureGlobals();
@@ -91,12 +99,15 @@ export class Tracker {
     const pnlLamports = solOut.sub(pos.costLamports);
     const pnlPct = pos.costLamports.isZero()
       ? 0
-      : pnlLamports.toNumber() / pos.costLamports.toNumber();
+      : pnlLamports.muln(10000).div(pos.costLamports).toNumber() / 10000;
 
     // Approximate price and mcap in SOL for console readability
-    const priceLamportsPerToken = pos.tokens.isZero() ? new BN(0) : solOut.div(pos.tokens);
-    const priceSol = Number(priceLamportsPerToken.toString()) / 1e9;
-    const mcapSol = Number(mcap.toString()) / 1e9;
+    // Price per token (string with 9 decimals), preserve precision using scaling
+    const priceLamportsScaled = pos.tokens.isZero()
+      ? new BN(0)
+      : solOut.mul(new BN(1_000_000_000)).div(pos.tokens);
+    const priceSolStr = this.lamportsToSolString(priceLamportsScaled);
+    const mcapSolStr = this.lamportsToSolString(mcap);
 
     logger.info('Track update', {
       mint: pos.mint.toBase58(),
@@ -105,8 +116,8 @@ export class Tracker {
       cost: pos.costLamports.toString(),
       pnlPct: pnlPct.toFixed(4),
       mcapLamports: mcap.toString(),
-      priceSol: priceSol.toFixed(10),
-      mcapSol: mcapSol.toFixed(2),
+      priceSol: priceSolStr,
+      mcapSol: mcapSolStr,
     });
 
     // Trailing stop logic
