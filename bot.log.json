@@ -13,3 +13,11 @@
 {"ts":"2025-09-06T01:00:59.196Z","level":"info","msg":"Track update","mint":"3Bqxoar4ARjgkq4q6dG92X3kM4np8gEde2NFTW6npump","tokens":"55362557500","solOut":"2840671","cost":"4544281","pnlPct":"-0.3749","mcapLamports":"51963497056"}
 {"ts":"2025-09-06T01:00:59.363Z","level":"info","msg":"Shutting down..."}
 {"ts":"2025-09-06T01:00:59.366Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-06T04:23:44.383Z","level":"info","msg":"Bot started","rpcUrl":"https://mainnet.helius-rpc.com/?api-key=ae38a585-1c2a-485b-b1a6-1ab9bdcec3b0","wsUrl":"wss://mainnet.helius-rpc.com/?api-key=ae38a585-1c2a-485b-b1a6-1ab9bdcec3b0","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.35,"slPct":-0.2,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-06T04:23:44.413Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-06T04:27:58.717Z","level":"info","msg":"Detected buy","signature":"32XrxQTR5S2e3CSgtGymVDx9bvt88pzYciotBASfEUFqTRHRrD6DQ5yFgNsEPnAbHL95RQu68GRRCjYaeEgRkPRn","slot":364962957,"blockTime":1757132877,"mint":"AfmCLmPwsWJr7fA5TEA9kFhv2NkBR1f9GDJuw7Zxpump","tokenDelta":"37237635993","solCostLamports":"4544281"}
+{"ts":"2025-09-06T04:27:58.718Z","level":"info","msg":"Position opened","mint":"AfmCLmPwsWJr7fA5TEA9kFhv2NkBR1f9GDJuw7Zxpump","tokens":"37237635993","costLamports":"4544281","signature":"32XrxQTR5S2e3CSgtGymVDx9bvt88pzYciotBASfEUFqTRHRrD6DQ5yFgNsEPnAbHL95RQu68GRRCjYaeEgRkPRn"}
+{"ts":"2025-09-06T04:27:58.895Z","level":"info","msg":"Track update","mint":"AfmCLmPwsWJr7fA5TEA9kFhv2NkBR1f9GDJuw7Zxpump","tokens":"37237635993","solOut":"2413830","cost":"4544281","pnlPct":"-0.4688","mcapLamports":"65646385379"}
+{"ts":"2025-09-06T04:27:59.302Z","level":"info","msg":"Sell submitted","sig":"AHPqLWf42MM9WpS1X6JFWCQLjMjE4Zr7wjK1WLY952jkKCY7pEkyBGWXpt7KX12vM6SRgXFRM2EFoVagkrUKoF1"}
+{"ts":"2025-09-06T04:28:23.611Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-06T04:28:23.612Z","level":"info","msg":"Shutting down..."}

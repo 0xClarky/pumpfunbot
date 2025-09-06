@@ -62,16 +62,21 @@ async function main() {
       const mint = new PublicKey(evt.mint);
       (async () => {
         try {
-          const buyState = await sdk.fetchBuyState(mint, kp.publicKey);
-          const mintSupply = buyState.bondingCurve.tokenTotalSupply;
           const tokens = new BN(evt.tokenDelta.toString());
-          const basis = getBuySolAmountFromTokenAmount({
-            global,
-            feeConfig,
-            mintSupply,
-            bondingCurve: buyState.bondingCurve,
-            amount: tokens,
-          });
+          // Prefer precise curve cost from tx meta (excludes tx fee)
+          let basis = new BN((evt.curveCostLamports ?? 0n).toString());
+          if (basis.isZero()) {
+            // Fallback: compute theoretical basis from current curve state
+            const buyState = await sdk.fetchBuyState(mint, kp.publicKey);
+            const mintSupply = buyState.bondingCurve.tokenTotalSupply;
+            basis = getBuySolAmountFromTokenAmount({
+              global,
+              feeConfig,
+              mintSupply,
+              bondingCurve: buyState.bondingCurve,
+              amount: tokens,
+            });
+          }
           const pos = {
             mint,
             openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
@@ -93,7 +98,7 @@ async function main() {
             openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
             openedSig: evt.signature,
             tokens: new BN(evt.tokenDelta.toString()),
-            costLamports: new BN(evt.solCostLamports.toString()),
+            costLamports: new BN((evt.curveCostLamports ?? evt.solCostLamports).toString()),
           };
           positions.upsert(pos);
         }

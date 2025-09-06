@@ -12,7 +12,9 @@ export type BuyEvent = {
   blockTime?: number | null;
   mint: string;
   tokenDelta: bigint; // in base units
-  solCostLamports: bigint; // positive lamports spent by wallet (includes fees)
+  solCostLamports: bigint; // lamports spent by wallet (includes tx fee)
+  txFeeLamports?: bigint; // meta.fee
+  curveCostLamports?: bigint; // lamports paid into program (excludes tx fee)
 };
 
 function includesPumpProgram(tx: ParsedTransactionWithMeta): boolean {
@@ -48,6 +50,8 @@ function parseBuyEvent(
   const preLamports = BigInt(tx.meta.preBalances?.[walletIndex] ?? 0);
   const postLamports = BigInt(tx.meta.postBalances?.[walletIndex] ?? 0);
   const solCostLamports = preLamports > postLamports ? preLamports - postLamports : 0n;
+  const txFeeLamports = BigInt(tx.meta.fee ?? 0);
+  const curveCostLamports = solCostLamports > txFeeLamports ? solCostLamports - txFeeLamports : 0n;
 
   // Token delta for owner=wallet; look for positive increase
   const preTB = tx.meta.preTokenBalances || [];
@@ -92,6 +96,8 @@ function parseBuyEvent(
     mint: chosenMint,
     tokenDelta: maxDelta,
     solCostLamports,
+    txFeeLamports,
+    curveCostLamports,
   };
 }
 
