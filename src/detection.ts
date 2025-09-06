@@ -1,8 +1,5 @@
-import {
-  Connection,
-  PublicKey,
-  ParsedTransactionWithMeta,
-} from '@solana/web3.js';
+import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { PUMP_PROGRAM_ID, PUMP_AMM_PROGRAM_ID } from '@pump-fun/pump-sdk';
 import { logger } from './logger';
 
@@ -51,7 +48,11 @@ function parseBuyEvent(
   const postLamports = BigInt(tx.meta.postBalances?.[walletIndex] ?? 0);
   const solCostLamports = preLamports > postLamports ? preLamports - postLamports : 0n;
   const txFeeLamports = BigInt(tx.meta.fee ?? 0);
-  const curveCostLamports = solCostLamports > txFeeLamports ? solCostLamports - txFeeLamports : 0n;
+  // Compute ATA rent deposit (if ATA was created during this tx)
+  let ataRentLamports = 0n;
+  try {
+    // We can compute ATA only once we know the mint. For now, defer and adjust below.
+  } catch {}
 
   // Token delta for owner=wallet; look for positive increase
   const preTB = tx.meta.preTokenBalances || [];
@@ -89,6 +90,20 @@ function parseBuyEvent(
 
   const sig = tx.transaction.signatures?.[0];
   if (!sig) return null;
+  // After choosing mint, compute ATA and subtract rent if present
+  let finalCurveCost = solCostLamports > txFeeLamports ? solCostLamports - txFeeLamports : 0n;
+  try {
+    const ata = getAssociatedTokenAddressSync(new PublicKey(chosenMint), wallet, true);
+    const keys = tx.transaction.message.accountKeys.map((k: any) => ('pubkey' in k ? k.pubkey.toBase58() : k.toString()));
+    const ataIdx = keys.indexOf(ata.toBase58());
+    if (ataIdx >= 0) {
+      const pre = BigInt(tx.meta.preBalances?.[ataIdx] ?? 0);
+      const post = BigInt(tx.meta.postBalances?.[ataIdx] ?? 0);
+      if (post > pre) ataRentLamports = post - pre;
+    }
+  } catch {}
+  if (finalCurveCost > ataRentLamports) finalCurveCost -= ataRentLamports;
+
   return {
     signature: sig,
     slot: tx.slot,
@@ -97,7 +112,7 @@ function parseBuyEvent(
     tokenDelta: maxDelta,
     solCostLamports,
     txFeeLamports,
-    curveCostLamports,
+    curveCostLamports: finalCurveCost,
   };
 }
 

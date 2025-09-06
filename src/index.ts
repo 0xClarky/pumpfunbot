@@ -58,16 +58,17 @@ async function main() {
   const detector = startBuyDetection({
     connection,
     wallet: kp.publicKey,
-    onBuy: (evt) => {
+    onBuy: async (evt) => {
       const mint = new PublicKey(evt.mint);
-      (async () => {
-        try {
-          const tokens = new BN(evt.tokenDelta.toString());
-          // Prefer precise curve cost from tx meta (excludes tx fee)
-          let basis = new BN((evt.curveCostLamports ?? 0n).toString());
-          let basisSource = 'event-curve-cost';
-          if (basis.isZero()) {
-            // Fallback: compute theoretical basis from current curve state
+      try {
+        const tokens = new BN(evt.tokenDelta.toString());
+        // Prefer event-derived curve cost (excludes tx fee + ATA rent); else compute via SDK
+        let basis = new BN((evt.curveCostLamports ?? 0n).toString());
+        let basisSource = 'event-curve-cost';
+        if (basis.isZero()) {
+          if (tracker) {
+            basis = await tracker.getSdkCostBasis(mint, tokens);
+          } else {
             const buyState = await sdk.fetchBuyState(mint, kp.publicKey);
             const mintSupply = buyState.bondingCurve.tokenTotalSupply;
             basis = getBuySolAmountFromTokenAmount({
@@ -77,38 +78,38 @@ async function main() {
               bondingCurve: buyState.bondingCurve,
               amount: tokens,
             });
-            basisSource = 'sdk-quote';
           }
-          const pos = {
-            mint,
-            openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
-            openedSig: evt.signature,
-            tokens,
-            costLamports: basis,
-          };
-          positions.upsert(pos);
-          logger.info('Position opened', {
-            mint: evt.mint,
-            tokens: pos.tokens.toString(),
-            costLamports: pos.costLamports.toString(),
-            signature: evt.signature,
-            basisSource,
-            eventSolCost: evt.solCostLamports?.toString(),
-            eventTxFee: evt.txFeeLamports?.toString(),
-            eventCurveCost: evt.curveCostLamports?.toString(),
-          });
-        } catch (e) {
-          logger.warn('Failed to compute buy basis; falling back to balance delta', { err: String(e) });
-          const pos = {
-            mint,
-            openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
-            openedSig: evt.signature,
-            tokens: new BN(evt.tokenDelta.toString()),
-            costLamports: new BN((evt.curveCostLamports ?? evt.solCostLamports).toString()),
-          };
-          positions.upsert(pos);
+          basisSource = 'sdk-quote';
         }
-      })();
+        const pos = {
+          mint,
+          openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
+          openedSig: evt.signature,
+          tokens,
+          costLamports: basis,
+        };
+        positions.upsert(pos);
+        logger.info('Position opened', {
+          mint: evt.mint,
+          tokens: pos.tokens.toString(),
+          costLamports: pos.costLamports.toString(),
+          signature: evt.signature,
+          basisSource,
+          eventSolCost: evt.solCostLamports?.toString(),
+          eventTxFee: evt.txFeeLamports?.toString(),
+          eventCurveCost: evt.curveCostLamports?.toString(),
+        });
+      } catch (e) {
+        logger.warn('Failed to compute buy basis; falling back to balance delta', { err: String(e) });
+        const pos = {
+          mint,
+          openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
+          openedSig: evt.signature,
+          tokens: new BN(evt.tokenDelta.toString()),
+          costLamports: new BN((evt.curveCostLamports ?? evt.solCostLamports).toString()),
+        };
+        positions.upsert(pos);
+      }
     },
     pollMs: config.pollIntervalMs,
     mode: config.detectionMode,

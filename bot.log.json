@@ -21,3 +21,15 @@
 {"ts":"2025-09-06T04:27:59.302Z","level":"info","msg":"Sell submitted","sig":"AHPqLWf42MM9WpS1X6JFWCQLjMjE4Zr7wjK1WLY952jkKCY7pEkyBGWXpt7KX12vM6SRgXFRM2EFoVagkrUKoF1"}
 {"ts":"2025-09-06T04:28:23.611Z","level":"info","msg":"Shutting down..."}
 {"ts":"2025-09-06T04:28:23.612Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-06T04:41:13.942Z","level":"info","msg":"Bot started","rpcUrl":"https://mainnet.helius-rpc.com/?api-key=ae38a585-1c2a-485b-b1a6-1ab9bdcec3b0","wsUrl":"wss://mainnet.helius-rpc.com/?api-key=ae38a585-1c2a-485b-b1a6-1ab9bdcec3b0","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.35,"slPct":-0.2,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-06T04:41:13.970Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-06T04:41:37.535Z","level":"info","msg":"Detected buy","signature":"3GfZERYKFuD5K8LTLm2bW2L3eCPRn71g3Sgr1yDbmW5sfcpqGXP3hB2YenyTxjaxj6AkUQizN3LAh4DT29H1ass1","slot":364965003,"blockTime":1757133696,"mint":"D1LqhgguGfRAbQ23tNpoE1bx2Ew8GGGjG22AbtiTpump","tokenDelta":"40815754689","solCostLamports":"4544281"}
+{"ts":"2025-09-06T04:41:37.535Z","level":"info","msg":"Position opened","mint":"D1LqhgguGfRAbQ23tNpoE1bx2Ew8GGGjG22AbtiTpump","tokens":"40815754689","costLamports":"4544281","signature":"3GfZERYKFuD5K8LTLm2bW2L3eCPRn71g3Sgr1yDbmW5sfcpqGXP3hB2YenyTxjaxj6AkUQizN3LAh4DT29H1ass1"}
+{"ts":"2025-09-06T04:41:38.194Z","level":"info","msg":"Track update","mint":"D1LqhgguGfRAbQ23tNpoE1bx2Ew8GGGjG22AbtiTpump","tokens":"40815754689","solOut":"2512497","cost":"4544281","pnlPct":"-0.4471","mcapLamports":"62339811569"}
+{"ts":"2025-09-06T04:41:38.666Z","level":"info","msg":"Sell submitted","sig":"SinzQv3pJNVMttqt2M7yRwtXVeUqNEy9uubDvrGNYopahkgD6JTwemJLu4nfLJAMoRK2p1U6f4xzDnxFzJ53e71"}
+{"ts":"2025-09-06T04:42:38.186Z","level":"warn","msg":"Tracker loop error","err":"TransactionExpiredBlockheightExceededError: Signature SinzQv3pJNVMttqt2M7yRwtXVeUqNEy9uubDvrGNYopahkgD6JTwemJLu4nfLJAMoRK2p1U6f4xzDnxFzJ53e71 has expired: block height exceeded."}
+{"ts":"2025-09-06T04:42:39.235Z","level":"info","msg":"Track update","mint":"D1LqhgguGfRAbQ23tNpoE1bx2Ew8GGGjG22AbtiTpump","tokens":"40815754689","solOut":"3398327","cost":"4544281","pnlPct":"-0.2522","mcapLamports":"84319715628"}
+{"ts":"2025-09-06T04:42:39.671Z","level":"info","msg":"Sell submitted","sig":"2TouTeH61ube3g1xX4vMHmQPQEaFU7d9R151qktYbcErHrMQzKyjBhGi1kG1Hb5fGED8d3ovvVMEKxqEHLRJH9aP"}
+{"ts":"2025-09-06T04:42:40.699Z","level":"info","msg":"Sell confirmed","sig":"2TouTeH61ube3g1xX4vMHmQPQEaFU7d9R151qktYbcErHrMQzKyjBhGi1kG1Hb5fGED8d3ovvVMEKxqEHLRJH9aP"}
+{"ts":"2025-09-06T04:43:04.097Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-06T04:43:04.098Z","level":"info","msg":"Shutting down..."}

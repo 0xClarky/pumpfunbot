@@ -2,7 +2,7 @@ import { Connection, PublicKey, ComputeBudgetProgram, VersionedTransaction, Tran
 import BN from 'bn.js';
 import { logger } from './logger';
 import { Positions, Position } from './positions';
-import { PumpSdk, bondingCurveMarketCap, getSellSolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
+import { PumpSdk, bondingCurveMarketCap, getSellSolAmountFromTokenAmount, getBuySolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
 
 type TrackerConfig = {
   tpPct: number; // e.g., 0.35 for +35%
@@ -126,6 +126,20 @@ export class Tracker {
     }
   }
 
+  // Public helper to compute SDK-based cost basis from current curve state
+  public async getSdkCostBasis(mint: PublicKey, tokens: BN): Promise<BN> {
+    await this.ensureGlobals();
+    const { bondingCurve } = await this.sdk.fetchBuyState(mint, this.wallet.publicKey);
+    const mintSupply = bondingCurve.tokenTotalSupply;
+    return getBuySolAmountFromTokenAmount({
+      global: this.globalCache!,
+      feeConfig: this.feeCfgCache!,
+      mintSupply,
+      bondingCurve,
+      amount: tokens,
+    });
+  }
+
   private async sellAll({
     pos,
     bondingCurveAccountInfo,
@@ -157,25 +171,37 @@ export class Tracker {
       slippage: slippagePct,
     });
 
-    const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('processed');
-    const message = new TransactionMessage({
-      payerKey: this.wallet.publicKey,
-      recentBlockhash: blockhash,
-      instructions: [...cuIxs, ...sellIxs],
-    }).compileToV0Message();
-
-    const tx = new VersionedTransaction(message);
-    tx.sign([this.wallet]);
-
-    const sig = await this.connection.sendRawTransaction(tx.serialize(), {
-      skipPreflight: this.cfg.skipPreflight,
-      preflightCommitment: 'processed',
-      maxRetries: 3,
-    });
-
-    logger.info('Sell submitted', { sig });
-    await this.connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
-    logger.info('Sell confirmed', { sig });
+    // Build/send with one retry on blockhash expiration
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('processed');
+      const message = new TransactionMessage({
+        payerKey: this.wallet.publicKey,
+        recentBlockhash: blockhash,
+        instructions: [...cuIxs, ...sellIxs],
+      }).compileToV0Message();
+      const tx = new VersionedTransaction(message);
+      tx.sign([this.wallet]);
+      const sig = await this.connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: this.cfg.skipPreflight,
+        preflightCommitment: 'processed',
+        maxRetries: 3,
+      });
+      logger.info('Sell submitted', { sig, attempt });
+      try {
+        await this.connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+        logger.info('Sell confirmed', { sig });
+        break;
+      } catch (e) {
+        const msg = String(e);
+        if (attempt < 2 && msg.includes('block height exceeded')) {
+          logger.warn('Resubmitting due to expired blockhash', { sig });
+          continue;
+        }
+        throw e;
+      }
+    }
     // Ensure position is removed after a successful sell to prevent re-evaluation
     this.positions.close(pos.mint);
     logger.info('Position closed', { mint: pos.mint.toBase58() });
