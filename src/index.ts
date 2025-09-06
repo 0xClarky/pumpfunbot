@@ -1,0 +1,74 @@
+import { Keypair, Connection, clusterApiUrl, PublicKey } from '@solana/web3.js';
+import { config, validateConfig } from './config';
+import { logger } from './logger';
+import { startBuyDetection } from './detection';
+import { Positions } from './positions';
+import BN from 'bn.js';
+import { Tracker } from './tracker';
+
+async function main() {
+  validateConfig(config);
+  const kp = Keypair.fromSecretKey(config.privateKey);
+
+  const rpcUrl = config.heliusRpcUrl || clusterApiUrl('mainnet-beta');
+  const connection = new Connection(rpcUrl, {
+    commitment: 'confirmed',
+    wsEndpoint: config.heliusWsUrl,
+  } as any);
+
+  logger.info('Bot started', {
+    rpcUrl,
+    wsUrl: config.heliusWsUrl,
+    wallet: kp.publicKey.toBase58(),
+    tpPct: config.tpPct,
+    slPct: config.slPct,
+    maxSlippageBps: config.maxSlippageBps,
+    priorityFeeSol: config.priorityFeeSol,
+    skipPreflight: config.skipPreflight,
+  });
+
+  const positions = new Positions();
+
+  const tracker = new Tracker(
+    connection,
+    kp,
+    positions,
+    {
+      tpPct: config.tpPct,
+      slPct: config.slPct,
+      maxSlippageBps: config.maxSlippageBps,
+      priorityFeeSol: config.priorityFeeSol,
+      skipPreflight: config.skipPreflight,
+    },
+  );
+  tracker.start();
+
+  startBuyDetection({
+    connection,
+    wallet: kp.publicKey,
+    onBuy: (evt) => {
+      const mint = new PublicKey(evt.mint);
+      const pos = {
+        mint,
+        openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
+        openedSig: evt.signature,
+        tokens: new BN(evt.tokenDelta.toString()),
+        costLamports: new BN(evt.solCostLamports.toString()),
+      };
+      positions.upsert(pos);
+      logger.info('Position opened', {
+        mint: evt.mint,
+        tokens: pos.tokens.toString(),
+        costLamports: pos.costLamports.toString(),
+        signature: evt.signature,
+      });
+    },
+    pollMs: config.pollIntervalMs,
+    mode: config.detectionMode,
+  });
+}
+
+main().catch((e) => {
+  logger.error('Fatal error', { err: String(e?.stack || e) });
+  process.exit(1);
+});
