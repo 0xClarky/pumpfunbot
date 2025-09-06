@@ -11,6 +11,7 @@ type TrackerConfig = {
   priorityFeeSol: number; // e.g., 0.01
   skipPreflight: boolean;
   sellEnabled: boolean;
+  minHoldMs: number;
 };
 
 export class Tracker {
@@ -54,6 +55,11 @@ export class Tracker {
   }
 
   private async evaluatePosition(pos: Position) {
+    // Do not evaluate sells until minHoldMs has elapsed from open
+    const nowMs = Date.now();
+    if (nowMs < (pos.openedAt * 1000 + this.cfg.minHoldMs)) {
+      return;
+    }
     const { bondingCurveAccountInfo, bondingCurve } = await this.sdk.fetchSellState(
       pos.mint,
       this.wallet.publicKey,
@@ -111,6 +117,8 @@ export class Tracker {
       if (this.selling.has(key)) return;
       this.selling.add(key);
       try {
+        const reason = pnlPct >= this.cfg.tpPct ? 'TP' : 'SL';
+        logger.info('Sell trigger', { mint: key, reason, pnlPct: pnlPct.toFixed(4) });
         await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
         // Close position after confirmed sell
         this.positions.close(pos.mint);

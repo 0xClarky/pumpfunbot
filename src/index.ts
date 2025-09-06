@@ -5,6 +5,7 @@ import { startBuyDetection } from './detection';
 import { Positions } from './positions';
 import BN from 'bn.js';
 import { Tracker } from './tracker';
+import { PumpSdk, getBuySolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
 
 async function main() {
   validateConfig(config);
@@ -30,6 +31,12 @@ async function main() {
   const positions = new Positions();
 
   let tracker: Tracker | null = null;
+  const sdk = new PumpSdk(connection);
+  // Warm global/fee caches early for consistent buy basis
+  const [global, feeConfig] = await Promise.all([
+    sdk.fetchGlobal(),
+    sdk.fetchFeeConfig(),
+  ]);
   if (config.trackerEnabled) {
     tracker = new Tracker(
       connection,
@@ -42,6 +49,7 @@ async function main() {
         priorityFeeSol: config.priorityFeeSol,
         skipPreflight: config.skipPreflight,
         sellEnabled: config.sellEnabled,
+        minHoldMs: config.minHoldMs,
       },
     );
     tracker.start();
@@ -52,20 +60,44 @@ async function main() {
     wallet: kp.publicKey,
     onBuy: (evt) => {
       const mint = new PublicKey(evt.mint);
-      const pos = {
-        mint,
-        openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
-        openedSig: evt.signature,
-        tokens: new BN(evt.tokenDelta.toString()),
-        costLamports: new BN(evt.solCostLamports.toString()),
-      };
-      positions.upsert(pos);
-      logger.info('Position opened', {
-        mint: evt.mint,
-        tokens: pos.tokens.toString(),
-        costLamports: pos.costLamports.toString(),
-        signature: evt.signature,
-      });
+      (async () => {
+        try {
+          const buyState = await sdk.fetchBuyState(mint, kp.publicKey);
+          const mintSupply = buyState.bondingCurve.tokenTotalSupply;
+          const tokens = new BN(evt.tokenDelta.toString());
+          const basis = getBuySolAmountFromTokenAmount({
+            global,
+            feeConfig,
+            mintSupply,
+            bondingCurve: buyState.bondingCurve,
+            amount: tokens,
+          });
+          const pos = {
+            mint,
+            openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
+            openedSig: evt.signature,
+            tokens,
+            costLamports: basis,
+          };
+          positions.upsert(pos);
+          logger.info('Position opened', {
+            mint: evt.mint,
+            tokens: pos.tokens.toString(),
+            costLamports: pos.costLamports.toString(),
+            signature: evt.signature,
+          });
+        } catch (e) {
+          logger.warn('Failed to compute buy basis; falling back to balance delta', { err: String(e) });
+          const pos = {
+            mint,
+            openedAt: evt.blockTime || Math.floor(Date.now() / 1000),
+            openedSig: evt.signature,
+            tokens: new BN(evt.tokenDelta.toString()),
+            costLamports: new BN(evt.solCostLamports.toString()),
+          };
+          positions.upsert(pos);
+        }
+      })();
     },
     pollMs: config.pollIntervalMs,
     mode: config.detectionMode,
