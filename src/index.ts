@@ -71,7 +71,7 @@ async function main() {
           tokens,
           costLamports: basis,
         };
-        positions.upsert(pos);
+        positions.addBuy(pos);
         logger.info('Position opened', {
           mint: evt.mint,
           tokens: pos.tokens.toString(),
@@ -89,7 +89,7 @@ async function main() {
           tokens: new BN(evt.tokenDelta.toString()),
           costLamports: new BN((evt.solCostLamports ?? 0n).toString()),
         };
-        positions.upsert(pos);
+        positions.addBuy(pos);
       }
     },
     pollMs: config.pollIntervalMs,

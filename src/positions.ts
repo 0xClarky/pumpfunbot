@@ -21,7 +21,8 @@ export class Positions {
     return this.byMint.get(mint.toBase58());
   }
 
-  upsert(pos: Position) {
+  // Accumulate a new buy into an existing position (adds tokens + cost)
+  addBuy(pos: Position) {
     const key = pos.mint.toBase58();
     const existing = this.byMint.get(key);
     if (existing) {
@@ -30,15 +31,28 @@ export class Positions {
       existing.costLamports = existing.costLamports.add(pos.costLamports);
       existing.openedSig = pos.openedSig; // latest buy signature
       existing.openedAt = pos.openedAt;
-      if (pos.peakSolOut) {
-        existing.peakSolOut = existing.peakSolOut && existing.peakSolOut.gt(pos.peakSolOut)
-          ? existing.peakSolOut
-          : pos.peakSolOut;
-      }
       this.byMint.set(key, existing);
     } else {
       this.byMint.set(key, pos);
     }
+  }
+
+  // Update specific fields of an existing position without altering tokens/cost unless provided
+  update(mint: PublicKey, fields: Partial<Position>) {
+    const key = mint.toBase58();
+    const existing = this.byMint.get(key);
+    if (!existing) return;
+    if (fields.openedAt !== undefined) existing.openedAt = fields.openedAt;
+    if (fields.openedSig !== undefined) existing.openedSig = fields.openedSig;
+    if (fields.tokens !== undefined) existing.tokens = fields.tokens;
+    if (fields.costLamports !== undefined) existing.costLamports = fields.costLamports;
+    if (fields.peakSolOut !== undefined) existing.peakSolOut = fields.peakSolOut;
+    this.byMint.set(key, existing);
+  }
+
+  // Backward-compat: treat upsert as addBuy (only used on buy paths previously)
+  upsert(pos: Position) {
+    this.addBuy(pos);
   }
 
   close(mint: PublicKey) {

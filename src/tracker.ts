@@ -123,13 +123,13 @@ export class Tracker {
     // Trailing stop logic
     // 1) update peak if higher (or initialize on first tick)
     if (!pos.peakSolOut || solOut.gt(pos.peakSolOut)) {
-      pos.peakSolOut = solOut;
-      this.positions.upsert(pos);
+      // Update only the peak value on the stored position to avoid altering tokens/cost
+      this.positions.update(pos.mint, { peakSolOut: solOut });
       const trailNumer = 10000 - this.cfg.trailingSlBps;
-      const trigger = pos.peakSolOut.muln(trailNumer).divn(10000);
+      const trigger = solOut.muln(trailNumer).divn(10000);
       logger.info('Peak updated', {
         mint: pos.mint.toBase58(),
-        peakSolOut: pos.peakSolOut.toString(),
+        peakSolOut: solOut.toString(),
         trailingSlBps: this.cfg.trailingSlBps,
         trailTrigger: trigger.toString(),
       });
