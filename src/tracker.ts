@@ -260,12 +260,11 @@ export class Tracker {
       slippage: slippagePct,
     });
 
-    // Build/send with one retry on blockhash expiration and a light status poll to reduce RPC churn
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // Build/send with WS-based confirmation and a single controlled resubmit on timeout
     let attempt = 0;
-    while (true) {
+    while (attempt < 2) {
       attempt++;
-      const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('processed');
+      const { blockhash } = await this.connection.getLatestBlockhash('processed');
       const message = new TransactionMessage({
         payerKey: this.wallet.publicKey,
         recentBlockhash: blockhash,
@@ -279,40 +278,78 @@ export class Tracker {
         maxRetries: 3,
       });
       logger.info('Sell submitted', { sig, attempt });
-      // poll signature status with modest backoff
-      const start = Date.now();
-      let delay = 300;
-      while (true) {
-        const st = await this.connection.getSignatureStatuses([sig]);
-        const s = st.value[0];
-        // Check for failure first: a tx can be finalized with an error
-        if (s?.err) {
-          logger.error('Sell transaction failed', { sig, err: s.err });
-          throw new Error(`Tx error: ${JSON.stringify(s.err)}`);
+
+      try {
+        // Prefer WS confirmation (fast, push-based)
+        await this.confirmWithWS(sig, 10_000);
+        logger.info('Sell confirmed', { sig, via: 'ws' });
+        break; // success
+      } catch (e) {
+        const msg = String(e);
+        if (msg.includes('ws-timeout')) {
+          // Fallback to HTTP status poll with gentle backoff
+          try {
+            await this.confirmWithHTTP(sig, 10_000);
+            logger.info('Sell confirmed', { sig, via: 'http' });
+            break;
+          } catch (e2) {
+            const m2 = String(e2);
+            if (attempt < 2 && (m2.includes('timeout') || m2.includes('block height exceeded'))) {
+              logger.warn('Resubmitting due to confirmation timeout', { sig, attempt });
+              continue; // resubmit once
+            }
+            throw e2;
+          }
+        } else {
+          // Any other error (including program failure)
+          throw e;
         }
-        if (s?.confirmationStatus === 'confirmed' || s?.confirmationStatus === 'finalized') {
-          logger.info('Sell confirmed', { sig, confirmationStatus: s.confirmationStatus });
-          attempt = 99; // exit outer loop
-          break;
-        }
-        if (Date.now() - start > 20_000) {
-          // treat as likely expired
-          throw new Error('block height exceeded');
-        }
-        await sleep(delay);
-        delay = Math.min(1000, Math.floor(delay * 1.3));
       }
-      if (attempt >= 99) break;
-      // resubmit on expiry once
-      if (attempt < 2) {
-        logger.warn('Resubmitting due to slow confirmation', { attempt });
-        continue;
-      }
-      break;
     }
     // Ensure position is removed after a successful sell to prevent re-evaluation
     this.positions.close(pos.mint);
     logger.info('Position closed', { mint: pos.mint.toBase58() });
+  }
+
+  private async confirmWithWS(sig: string, timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let timer: any;
+      try {
+        const subId = this.connection.onSignature(
+          sig,
+          (res: any) => {
+            clearTimeout(timer);
+            if (res?.err) {
+              reject(new Error(`Tx error: ${JSON.stringify(res.err)}`));
+            } else {
+              resolve();
+            }
+          },
+          'confirmed',
+        );
+        timer = setTimeout(() => {
+          this.connection.removeSignatureListener(subId).catch(() => {});
+          reject(new Error('ws-timeout'));
+        }, timeoutMs);
+      } catch (e) {
+        reject(e as any);
+      }
+    });
+  }
+
+  private async confirmWithHTTP(sig: string, totalMs: number): Promise<void> {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const start = Date.now();
+    let delay = 800;
+    while (true) {
+      const st = await this.connection.getSignatureStatuses([sig]);
+      const s = st.value[0];
+      if (s?.err) throw new Error(`Tx error: ${JSON.stringify(s.err)}`);
+      if (s?.confirmationStatus === 'confirmed' || s?.confirmationStatus === 'finalized') return;
+      if (Date.now() - start > totalMs) throw new Error('timeout');
+      await sleep(delay);
+      delay = Math.min(1200, Math.floor(delay * 1.25));
+    }
   }
 
   private async loop() {
