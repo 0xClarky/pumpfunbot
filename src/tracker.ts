@@ -260,7 +260,7 @@ export class Tracker {
       slippage: slippagePct,
     });
 
-    // Build/send with WS-based confirmation and a single controlled resubmit on timeout
+    // Build/send with WS-based confirmation (processed fast path + confirmed) and a single resubmit on timeout
     let attempt = 0;
     while (attempt < 2) {
       attempt++;
@@ -279,31 +279,31 @@ export class Tracker {
       });
       logger.info('Sell submitted', { sig, attempt });
 
+      // Fast path: wait for 'processed' quickly; resubmit early if we don't see it
       try {
-        // Prefer WS confirmation (fast, push-based)
-        await this.confirmWithWS(sig, 10_000);
+        await this.waitSignatureWS(sig, 'processed', 5_000);
+        logger.info('Sell observed', { sig, commitment: 'processed' });
+      } catch (e) {
+        if (attempt < 2) {
+          logger.warn('Resubmitting due to no processed signal', { sig, attempt });
+          continue; // early resubmit
+        }
+        throw e;
+      }
+
+      // Background: wait for 'confirmed' with its own timeout
+      try {
+        await this.waitSignatureWS(sig, 'confirmed', 12_000);
         logger.info('Sell confirmed', { sig, via: 'ws' });
         break; // success
       } catch (e) {
         const msg = String(e);
-        if (msg.includes('ws-timeout')) {
-          // Fallback to HTTP status poll with gentle backoff
-          try {
-            await this.confirmWithHTTP(sig, 10_000);
-            logger.info('Sell confirmed', { sig, via: 'http' });
-            break;
-          } catch (e2) {
-            const m2 = String(e2);
-            if (attempt < 2 && (m2.includes('timeout') || m2.includes('block height exceeded'))) {
-              logger.warn('Resubmitting due to confirmation timeout', { sig, attempt });
-              continue; // resubmit once
-            }
-            throw e2;
-          }
-        } else {
-          // Any other error (including program failure)
-          throw e;
+        if (attempt < 2 && msg.includes('ws-timeout')) {
+          logger.warn('Resubmitting due to confirmation timeout', { sig, attempt });
+          continue;
         }
+        // Program failure or final timeout
+        throw e;
       }
     }
     // Ensure position is removed after a successful sell to prevent re-evaluation
@@ -311,7 +311,7 @@ export class Tracker {
     logger.info('Position closed', { mint: pos.mint.toBase58() });
   }
 
-  private async confirmWithWS(sig: string, timeoutMs: number): Promise<void> {
+  private async waitSignatureWS(sig: string, commitment: 'processed' | 'confirmed', timeoutMs: number): Promise<void> {
     return new Promise((resolve, reject) => {
       let timer: any;
       try {
@@ -325,7 +325,7 @@ export class Tracker {
               resolve();
             }
           },
-          'confirmed',
+          commitment,
         );
         timer = setTimeout(() => {
           this.connection.removeSignatureListener(subId).catch(() => {});
@@ -335,21 +335,6 @@ export class Tracker {
         reject(e as any);
       }
     });
-  }
-
-  private async confirmWithHTTP(sig: string, totalMs: number): Promise<void> {
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    const start = Date.now();
-    let delay = 800;
-    while (true) {
-      const st = await this.connection.getSignatureStatuses([sig]);
-      const s = st.value[0];
-      if (s?.err) throw new Error(`Tx error: ${JSON.stringify(s.err)}`);
-      if (s?.confirmationStatus === 'confirmed' || s?.confirmationStatus === 'finalized') return;
-      if (Date.now() - start > totalMs) throw new Error('timeout');
-      await sleep(delay);
-      delay = Math.min(1200, Math.floor(delay * 1.25));
-    }
   }
 
   private async loop() {
