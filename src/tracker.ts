@@ -1,5 +1,5 @@
 import { Connection, PublicKey, ComputeBudgetProgram, VersionedTransaction, TransactionMessage, Keypair } from '@solana/web3.js';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { AccountLayout } from '@solana/spl-token';
 import BN from 'bn.js';
 import { logger } from './logger';
 import { Positions, Position } from './positions';
@@ -71,13 +71,15 @@ export class Tracker {
     if (nowMs < (pos.openedAt * 1000 + this.cfg.minHoldMs)) {
       return;
     }
-    // Fetch on-chain state with manual-close detection
+    // Fetch on-chain state with manual-close detection (single RPC using buyState includes ATA)
     let bondingCurveAccountInfo: any;
     let bondingCurve: any;
+    let associatedUserAccountInfo: any | null = null;
     try {
-      const sellState = await this.sdk.fetchSellState(pos.mint, this.wallet.publicKey);
-      bondingCurveAccountInfo = sellState.bondingCurveAccountInfo;
-      bondingCurve = sellState.bondingCurve;
+      const buyState = await this.sdk.fetchBuyState(pos.mint, this.wallet.publicKey);
+      bondingCurveAccountInfo = buyState.bondingCurveAccountInfo;
+      bondingCurve = buyState.bondingCurve;
+      associatedUserAccountInfo = buyState.associatedUserAccountInfo;
     } catch (e) {
       const msg = String(e);
       const manualClose =
@@ -91,18 +93,24 @@ export class Tracker {
       }
       throw e;
     }
-
-    // If ATA exists but balance is zero, treat as manually closed as well
+    // If ATA missing or zero balance, treat as manually closed
     try {
-      const ata = getAssociatedTokenAddressSync(pos.mint, this.wallet.publicKey, true);
-      const bal = await this.connection.getTokenAccountBalance(ata);
-      if (!bal?.value || bal.value.uiAmount === 0 || bal.value.amount === '0') {
+      if (!associatedUserAccountInfo) {
+        logger.info('Position ATA missing; removing from tracker', { mint: pos.mint.toBase58() });
+        this.positions.close(pos.mint);
+        return;
+      }
+      const data = associatedUserAccountInfo.data as Buffer;
+      const decoded: any = AccountLayout.decode(Buffer.from(data));
+      // decoded.amount is a Buffer-like u64; convert to string then BigInt
+      const amt = BigInt(decoded.amount.toString());
+      if (amt === 0n) {
         logger.info('Position balance zero; removing from tracker', { mint: pos.mint.toBase58() });
         this.positions.close(pos.mint);
         return;
       }
-    } catch (_) {
-      // ignore errors here; sellState succeeded so continue
+    } catch {
+      // If decode fails, proceed — sell/trailing logic will still function
     }
     if (bondingCurve.complete) {
       // Migration/complete state — halt this position per SOW
