@@ -8,6 +8,9 @@ import { Tracker } from './tracker';
 import { PumpSdk, getBuySolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
 import { startOnchainCreateDetection } from './sources/onchainCreateDetector';
 import { fetchJsonMetadata } from './sources/metadata';
+import { store } from './store_sqlite';
+import { checkSocial } from './gates/social';
+import { computeCreatorInitialBuyLamports, findFunderOneHop } from './gates/onchain';
 // filters intentionally disabled for now; we're focusing on decode + metadata
 
 async function main() {
@@ -18,6 +21,9 @@ async function main() {
   const connection = new Connection(rpcUrl, {
     commitment: 'processed',
     wsEndpoint: config.heliusWsUrl,
+  } as any);
+  const httpConfirmed = new Connection(rpcUrl, {
+    commitment: 'confirmed',
   } as any);
 
   logger.info('Bot started', {
@@ -61,6 +67,9 @@ async function main() {
     );
     tracker.start();
   }
+
+  // Seed known creators blacklist from env (optional)
+  try { store.seedKnownCreators(config.blacklistCreators, 'env-blacklist'); } catch {}
 
   let detector: { stop: () => void } | null = null;
   if (config.detectionEnabled) {
@@ -112,6 +121,7 @@ async function main() {
   if ((config as any).discoveryOnchain) {
     createDetector = startOnchainCreateDetection({
       connection,
+      fetchConnection: httpConfirmed,
       onCreate: async (evt) => {
         logger.info('New launch', {
           mint: evt.mint,
@@ -120,11 +130,10 @@ async function main() {
           symbol: evt.symbol,
           sig: evt.signature,
         });
-        // Fetch metadata (no buys/filters yet)
+        // Fetch metadata
         let metadata: any = null;
-        try {
-          metadata = await fetchJsonMetadata(evt.uri, config.metadataTimeoutMs);
-        } catch {}
+        try { metadata = await fetchJsonMetadata(evt.uri, config.metadataTimeoutMs); } catch {}
+
         const candidate = {
           signature: evt.signature,
           mint: evt.mint,
@@ -142,16 +151,80 @@ async function main() {
               }
             : null,
         };
-        const desc = (candidate.metadata?.description || '').slice(0, 160);
-        logger.info('Launch metadata', {
+
+        // Parallel gates
+        const socialP = checkSocial(
+          {
+            name: evt.name,
+            symbol: evt.symbol,
+            image: candidate.metadata?.image,
+            twitter: candidate.metadata?.twitter,
+            description: candidate.metadata?.description,
+          },
+          {
+            requireImage: config.requireImage,
+            requireTwitterHandleMatch: config.requireTwitterHandleMatch,
+            requireDescription: config.requireDescription,
+            httpHeadTimeoutMs: config.httpHeadTimeoutMs,
+          },
+        );
+
+        const initialBuyP = computeCreatorInitialBuyLamports(httpConfirmed, {
+          signature: evt.signature,
+          creator: evt.creator,
           mint: evt.mint,
+        });
+
+        // Check first-time creator BEFORE persisting
+        const firstTime = config.creatorRequireFirstTime ? !store.hasCreator(evt.creator) : true;
+
+        const funderP = config.creatorFunderBlacklistCheck
+          ? findFunderOneHop(httpConfirmed, { creator: evt.creator, beforeSig: evt.signature, timeoutMs: config.lineageTimeoutMs })
+          : Promise.resolve(null);
+
+        const [social, initialBuyLamports, funder] = await Promise.all([socialP, initialBuyP, funderP]);
+        const initialBuySol = Number(initialBuyLamports) / 1_000_000_000;
+        const funderKnown = !!funder && (store.isKnownCreator(funder) || store.hasCreator(funder));
+        if (funder) {
+          try { store.addCreatorLink(evt.creator, funder, evt.signature); } catch {}
+        }
+
+        const hardFails: string[] = [];
+        if (!social.pass) hardFails.push(...social.reasons.map(r=>`social:${r}`));
+        if (config.creatorRequireFirstTime && !firstTime) hardFails.push('creator:not-first-time');
+        if (config.creatorMaxInitialBuySol > 0 && initialBuySol > config.creatorMaxInitialBuySol) hardFails.push('creator:initial-buy-too-large');
+        if (config.creatorFunderBlacklistCheck && funderKnown) hardFails.push('creator:funder-known');
+
+        logger.info('Launch decision snapshot', {
+          mint: evt.mint,
+          sig: evt.signature,
+          creator: evt.creator,
+          name: evt.name,
+          symbol: evt.symbol,
           uri: evt.uri,
           image: candidate.metadata?.image,
           twitter: candidate.metadata?.twitter,
-          telegram: candidate.metadata?.telegram,
-          website: candidate.metadata?.website,
-          description: desc,
+          socialReasons: social.reasons,
+          initialBuySol: initialBuySol.toFixed(6),
+          firstTime,
+          funder,
+          funderKnown,
+          hardFails,
         });
+        // Persist mint + creator to local store after decision snapshot
+        try {
+          store.upsertCreatorOnCreate(evt.creator, evt.signature);
+          store.addMint({
+            mint: evt.mint,
+            creator: evt.creator,
+            sig: evt.signature,
+            name: evt.name,
+            symbol: evt.symbol,
+            uri: evt.uri,
+            ts: evt.blockTime || Math.floor(Date.now() / 1000),
+          });
+        } catch {}
+        // Note: we are not buying yet; this logs the pass/fail signals.
       },
       commitment: 'processed',
     });

@@ -35,6 +35,15 @@ export type Config = {
   blacklistCreators: string[];
   whitelistCreators: string[];
   blacklistWords: string[];
+  // Sniper gating
+  requireImage: boolean;
+  requireTwitterHandleMatch: boolean;
+  requireDescription: boolean;
+  creatorMaxInitialBuySol: number; // reject if creator initial buy > this (SOL)
+  creatorRequireFirstTime: boolean; // reject if creator exists in local DB
+  creatorFunderBlacklistCheck: boolean; // 1-hop funder check against known creators
+  httpHeadTimeoutMs: number; // image HEAD timeout
+  lineageTimeoutMs: number; // funder lookup timeout
 };
 
 function parsePrivateKey(input?: string): Uint8Array {
@@ -101,6 +110,15 @@ export const config: Config = {
   blacklistCreators: (process.env.BLACKLIST_CREATORS || '').split(',').map(s=>s.trim()).filter(Boolean),
   whitelistCreators: (process.env.WHITELIST_CREATORS || '').split(',').map(s=>s.trim()).filter(Boolean),
   blacklistWords: (process.env.BLACKLIST_WORDS || '').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean),
+  // Sniper gating defaults (conservative)
+  requireImage: (process.env.REQUIRE_IMAGE || 'true').toLowerCase() === 'true',
+  requireTwitterHandleMatch: (process.env.REQUIRE_TWITTER_HANDLE_MATCH || 'true').toLowerCase() === 'true',
+  requireDescription: (process.env.REQUIRE_DESC || 'false').toLowerCase() === 'true',
+  creatorMaxInitialBuySol: Number(process.env.CREATOR_MAX_INITIAL_BUY_SOL || 2),
+  creatorRequireFirstTime: (process.env.CREATOR_REQUIRE_FIRST_TIME || 'true').toLowerCase() === 'true',
+  creatorFunderBlacklistCheck: (process.env.CREATOR_FUNDER_BLACKLIST_CHECK || 'false').toLowerCase() === 'true',
+  httpHeadTimeoutMs: Number(process.env.HTTP_HEAD_TIMEOUT_MS || 400),
+  lineageTimeoutMs: Number(process.env.LINEAGE_TIMEOUT_MS || 800),
 };
 
 export function validateConfig(cfg: Config) {
