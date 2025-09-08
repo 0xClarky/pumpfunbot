@@ -14,6 +14,7 @@ export type Config = {
   priorityFeeSol: number; // e.g., 0.01 SOL
   skipPreflight: boolean;
   detectionMode: 'auto' | 'ws' | 'poll';
+  detectionEnabled: boolean;
   pollIntervalMs: number;
   trackerEnabled: boolean;
   sellEnabled: boolean;
@@ -81,6 +82,7 @@ export const config: Config = {
   priorityFeeSol: Number(process.env.PRIORITY_FEE_SOL || 0.01),
   skipPreflight: (process.env.SKIP_PREFLIGHT || 'true').toLowerCase() === 'true',
   detectionMode: ((process.env.DETECTION_MODE || 'auto') as any),
+  detectionEnabled: (process.env.DETECTION_ENABLED || 'true').toLowerCase() === 'true',
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 1000),
   trackerEnabled: (process.env.TRACKER_ENABLED || 'true').toLowerCase() === 'true',
   sellEnabled: (process.env.SELL_ENABLED || 'true').toLowerCase() === 'true',

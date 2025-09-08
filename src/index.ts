@@ -16,7 +16,7 @@ async function main() {
 
   const rpcUrl = config.heliusRpcUrl || clusterApiUrl('mainnet-beta');
   const connection = new Connection(rpcUrl, {
-    commitment: 'confirmed',
+    commitment: 'processed',
     wsEndpoint: config.heliusWsUrl,
   } as any);
 
@@ -62,10 +62,12 @@ async function main() {
     tracker.start();
   }
 
-  const detector = startBuyDetection({
-    connection,
-    wallet: kp.publicKey,
-    onBuy: async (evt) => {
+  let detector: { stop: () => void } | null = null;
+  if (config.detectionEnabled) {
+    detector = startBuyDetection({
+      connection,
+      wallet: kp.publicKey,
+      onBuy: async (evt) => {
       const mint = new PublicKey(evt.mint);
       try {
         const tokens = new BN(evt.tokenDelta.toString());
@@ -97,10 +99,13 @@ async function main() {
         };
         positions.addBuy(pos);
       }
-    },
-    pollMs: config.pollIntervalMs,
-    mode: config.detectionMode,
-  });
+      },
+      pollMs: config.pollIntervalMs,
+      mode: config.detectionMode,
+    });
+  } else {
+    logger.info('Wallet buy-detection disabled');
+  }
 
   // Optional: on-chain discovery of new launches
   let createDetector: { stop: () => void } | null = null;
@@ -155,7 +160,7 @@ async function main() {
   // Graceful shutdown
   const shutdown = () => {
     logger.info('Shutting down...');
-    try { detector.stop(); } catch {}
+    try { detector?.stop(); } catch {}
     try { createDetector?.stop(); } catch {}
     try { tracker?.stop(); } catch {}
     setTimeout(() => process.exit(0), 200);

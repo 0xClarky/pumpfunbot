@@ -15,10 +15,12 @@ export type NewLaunchEvent = {
 
 export function startOnchainCreateDetection({
   connection,
+  fetchConnection,
   onCreate,
   commitment = 'processed',
 }: {
-  connection: Connection;
+  connection: Connection; // used for WS logs
+  fetchConnection?: Connection; // used for HTTP fetch/confirm (default: connection)
   onCreate: (evt: NewLaunchEvent) => void;
   commitment?: 'processed' | 'confirmed';
 }): { stop: () => void } {
@@ -27,6 +29,29 @@ export function startOnchainCreateDetection({
   const processed = new Set<string>();
   const inFlight = new Set<string>();
   const program = getPumpProgram(connection);
+
+  async function waitSignatureWS(sig: string, commit: 'processed' | 'confirmed', timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let timer: any;
+      try {
+        const subId = connection.onSignature(
+          sig,
+          (res: any) => {
+            clearTimeout(timer);
+            if (res?.err) reject(new Error(`tx-error:${JSON.stringify(res.err)}`));
+            else resolve();
+          },
+          commit,
+        );
+        timer = setTimeout(() => {
+          connection.removeSignatureListener(subId).catch(() => {});
+          reject(new Error('ws-timeout'));
+        }, timeoutMs);
+      } catch (e) {
+        reject(e as any);
+      }
+    });
+  }
 
   function logsHasCreate(logs: Logs): boolean {
     const lines: string[] = (logs as any).logs || [];
@@ -39,11 +64,12 @@ export function startOnchainCreateDetection({
   }
 
   async function handleSignature(signature: string, slot: number) {
+    const http = fetchConnection || connection;
     if (processed.has(signature) || inFlight.has(signature)) return;
     inFlight.add(signature);
     try {
       // 1) Fetch RAW tx quickly at processed, with short retries
-      let raw = await connection.getTransaction(signature, {
+      let raw = await http.getTransaction(signature, {
         maxSupportedTransactionVersion: 0,
         commitment: 'processed' as any,
       } as any);
@@ -51,7 +77,7 @@ export function startOnchainCreateDetection({
       while (!raw && attempts < 30) {
         await new Promise((r) => setTimeout(r, 150));
         attempts++;
-        raw = await connection.getTransaction(signature, {
+        raw = await http.getTransaction(signature, {
           maxSupportedTransactionVersion: 0,
           commitment: 'processed' as any,
         } as any);
@@ -117,9 +143,9 @@ export function startOnchainCreateDetection({
 
       // 3) Confirm before emitting
       try {
-        await connection.confirmTransaction(signature, 'confirmed');
+        await waitSignatureWS(signature, 'confirmed', 15000);
       } catch (e) {
-        logger.warn('Create tx failed confirmation', { sig: signature, err: String((e as any)?.message || e) });
+        logger.warn('Create tx confirmation (ws) failed or timed out', { sig: signature, err: String((e as any)?.message || e) });
         return;
       }
 
