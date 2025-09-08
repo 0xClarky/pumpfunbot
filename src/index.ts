@@ -7,6 +7,8 @@ import BN from 'bn.js';
 import { Tracker } from './tracker';
 import { PumpSdk, getBuySolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
 import { startOnchainCreateDetection } from './sources/onchainCreateDetector';
+import { fetchJsonMetadata } from './sources/metadata';
+import { evaluateLaunch } from './filters';
 
 async function main() {
   validateConfig(config);
@@ -105,7 +107,7 @@ async function main() {
   if ((config as any).discoveryOnchain) {
     createDetector = startOnchainCreateDetection({
       connection,
-      onCreate: (evt) => {
+      onCreate: async (evt) => {
         logger.info('New launch', {
           mint: evt.mint,
           creator: evt.creator,
@@ -113,7 +115,46 @@ async function main() {
           symbol: evt.symbol,
           sig: evt.signature,
         });
-        // Future: enqueue buy decision here
+        // Fetch and evaluate metadata (no buys yet)
+        let metadata: any = null;
+        try {
+          metadata = await fetchJsonMetadata(evt.uri, config.metadataTimeoutMs);
+        } catch {}
+        const candidate = {
+          signature: evt.signature,
+          mint: evt.mint,
+          creator: evt.creator,
+          name: evt.name,
+          symbol: evt.symbol,
+          uri: evt.uri,
+          metadata: metadata
+            ? {
+                description: metadata.description,
+                image: metadata.image,
+                twitter: metadata.twitter,
+                telegram: metadata.telegram,
+                website: metadata.website,
+              }
+            : null,
+        };
+        const decision = evaluateLaunch(candidate as any, config);
+        logger.info('Launch evaluation', {
+          mint: evt.mint,
+          accepted: decision.accepted,
+          reasons: decision.reasons.join(','),
+          haveImage: Boolean(candidate.metadata?.image),
+          haveSocial: Boolean(candidate.metadata && (candidate.metadata.twitter || candidate.metadata.telegram || candidate.metadata.website)),
+        });
+        const desc = (candidate.metadata?.description || '').slice(0, 160);
+        logger.info('Launch metadata', {
+          mint: evt.mint,
+          uri: evt.uri,
+          image: candidate.metadata?.image,
+          twitter: candidate.metadata?.twitter,
+          telegram: candidate.metadata?.telegram,
+          website: candidate.metadata?.website,
+          description: desc,
+        });
       },
       commitment: 'processed',
     });

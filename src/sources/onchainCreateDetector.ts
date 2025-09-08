@@ -42,11 +42,25 @@ export function startOnchainCreateDetection({
     if (processed.has(signature) || inFlight.has(signature)) return;
     inFlight.add(signature);
     try {
-      const tx = await connection.getParsedTransaction(signature, {
+      // Fetch at 'confirmed' (some providers disallow 'processed' for this method); retry briefly
+      let tx = await connection.getParsedTransaction(signature, {
         maxSupportedTransactionVersion: 0,
         commitment: 'confirmed',
       });
-      if (!tx || tx.meta?.err) return;
+      let attempts = 0;
+      while (!tx && attempts < 25) {
+        await new Promise((r) => setTimeout(r, 200));
+        attempts++;
+        tx = await connection.getParsedTransaction(signature, {
+          maxSupportedTransactionVersion: 0,
+          commitment: 'confirmed',
+        });
+      }
+      if (!tx) {
+        logger.debug('Create tx not yet available', { sig: signature });
+        return;
+      }
+      if (tx.meta?.err) return;
 
       // Find the create instruction targeting Pump program
       const msg: any = tx.transaction.message as any;
@@ -56,6 +70,7 @@ export function startOnchainCreateDetection({
 
       const pumpPid = PUMP_PROGRAM_ID.toBase58();
       const ixs: any[] = (msg.instructions || []) as any[];
+      let decodedOk = false;
       for (const ix of ixs) {
         const pid = (ix.programId || ix.programIdIndex !== undefined
           ? (ix.programId?.toBase58?.() || keys[ix.programIdIndex])
@@ -98,11 +113,15 @@ export function startOnchainCreateDetection({
           });
           onCreate(evt);
           processed.add(signature);
+          decodedOk = true;
           return; // done
         } catch (e) {
           // not a create instruction, continue searching
           continue;
         }
+      }
+      if (!decodedOk) {
+        logger.debug('No decodable create instruction found in tx', { sig: signature });
       }
     } catch (e) {
       logger.warn('Create decode failed', { sig: signature, err: String((e as any)?.message || e) });

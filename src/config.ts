@@ -22,6 +22,18 @@ export type Config = {
   sellStrategy: 'fixed' | 'trailing';
   // Discovery/sniper flags
   discoveryOnchain: boolean; // enable WS create detector
+  // Launch intel and filtering
+  metadataTimeoutMs: number;
+  filterAsciiOnly: boolean;
+  filterRequireImage: boolean;
+  filterRequireSocial: boolean; // require at least one of twitter/telegram/website
+  nameMin: number;
+  nameMax: number;
+  symbolMin: number;
+  symbolMax: number;
+  blacklistCreators: string[];
+  whitelistCreators: string[];
+  blacklistWords: string[];
 };
 
 function parsePrivateKey(input?: string): Uint8Array {
@@ -76,6 +88,17 @@ export const config: Config = {
   trailingSlBps: Number(process.env.TRAILING_SL_BPS || 3000),
   sellStrategy: ((process.env.SELL_STRATEGY || 'fixed') as 'fixed' | 'trailing'),
   discoveryOnchain: (process.env.DISCOVERY_ONCHAIN || 'false').toLowerCase() === 'true',
+  metadataTimeoutMs: Number(process.env.METADATA_TIMEOUT_MS || 2500),
+  filterAsciiOnly: (process.env.FILTER_ASCII_ONLY || 'true').toLowerCase() === 'true',
+  filterRequireImage: (process.env.FILTER_REQUIRE_IMAGE || 'false').toLowerCase() === 'true',
+  filterRequireSocial: (process.env.FILTER_REQUIRE_SOCIAL || 'false').toLowerCase() === 'true',
+  nameMin: Number(process.env.NAME_MIN || 1),
+  nameMax: Number(process.env.NAME_MAX || 32),
+  symbolMin: Number(process.env.SYMBOL_MIN || 1),
+  symbolMax: Number(process.env.SYMBOL_MAX || 10),
+  blacklistCreators: (process.env.BLACKLIST_CREATORS || '').split(',').map(s=>s.trim()).filter(Boolean),
+  whitelistCreators: (process.env.WHITELIST_CREATORS || '').split(',').map(s=>s.trim()).filter(Boolean),
+  blacklistWords: (process.env.BLACKLIST_WORDS || '').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean),
 };
 
 export function validateConfig(cfg: Config) {
