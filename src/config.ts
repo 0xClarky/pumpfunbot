@@ -20,6 +20,8 @@ export type Config = {
   minHoldMs: number; // grace period after buy before sell checks
   trailingSlBps: number; // e.g., 3000 = 30%
   sellStrategy: 'fixed' | 'trailing';
+  // Discovery/sniper flags
+  discoveryOnchain: boolean; // enable WS create detector
 };
 
 function parsePrivateKey(input?: string): Uint8Array {
@@ -73,6 +75,7 @@ export const config: Config = {
   minHoldMs: Number(process.env.MIN_HOLD_MS || 2000),
   trailingSlBps: Number(process.env.TRAILING_SL_BPS || 3000),
   sellStrategy: ((process.env.SELL_STRATEGY || 'fixed') as 'fixed' | 'trailing'),
+  discoveryOnchain: (process.env.DISCOVERY_ONCHAIN || 'false').toLowerCase() === 'true',
 };
 
 export function validateConfig(cfg: Config) {

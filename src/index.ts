@@ -6,6 +6,7 @@ import { Positions } from './positions';
 import BN from 'bn.js';
 import { Tracker } from './tracker';
 import { PumpSdk, getBuySolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
+import { startOnchainCreateDetection } from './sources/onchainCreateDetector';
 
 async function main() {
   validateConfig(config);
@@ -99,10 +100,30 @@ async function main() {
     mode: config.detectionMode,
   });
 
+  // Optional: on-chain discovery of new launches
+  let createDetector: { stop: () => void } | null = null;
+  if ((config as any).discoveryOnchain) {
+    createDetector = startOnchainCreateDetection({
+      connection,
+      onCreate: (evt) => {
+        logger.info('New launch', {
+          mint: evt.mint,
+          creator: evt.creator,
+          name: evt.name,
+          symbol: evt.symbol,
+          sig: evt.signature,
+        });
+        // Future: enqueue buy decision here
+      },
+      commitment: 'processed',
+    });
+  }
+
   // Graceful shutdown
   const shutdown = () => {
     logger.info('Shutting down...');
     try { detector.stop(); } catch {}
+    try { createDetector?.stop(); } catch {}
     try { tracker?.stop(); } catch {}
     setTimeout(() => process.exit(0), 200);
   };

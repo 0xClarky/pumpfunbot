@@ -1,0 +1,117 @@
+Pump.fun Sell Bot — Project Overview and Next Steps
+
+1) Objectives (from SOW)
+- Detect manual buys of pre‑migration Pump.fun tokens from Lee’s wallet.
+- Track positions in real time (PnL, price, MCAP via Pump bonding curve state).
+- Auto‑sell when exit condition hits (configurable):
+  - Fixed TP/SL (e.g., TP +35%, SL −20%) or
+  - Trailing stop loss (e.g., 30% trail) — can be toggled.
+- Priorities: simplicity, speed, reliability. Out of scope: auto‑buy, LP/migration handling beyond halt.
+
+2) Current Architecture (high level)
+- Language/stack: TypeScript (Node.js). Libs: @pump-fun/pump-sdk, @solana/web3.js, @solana/spl-token, bn.js, dotenv.
+- Core modules:
+  - src/index.ts: startup, config, tracker + detection wiring, graceful shutdown.
+  - src/config.ts: env loading/validation and runtime feature flags.
+  - src/detection.ts: buy detection via wallet logs (WS primary), tx parsing, and fallback mechanisms.
+  - src/tracker.ts: position evaluation loop, PnL calc, sell building + confirmation, manual close detection.
+  - src/positions.ts: in‑memory position store (addBuy/update/close) designed to avoid state corruption.
+  - src/logger.ts: console + JSON file logging.
+
+3) Detection Strategy
+- Primary: WebSocket `onLogs(wallet)` for low‑latency push of new wallet tx signatures.
+- Parsing: Fetch parsed tx, confirm Pump program involvement, compute:
+  - tokenDelta: owner’s token increase by mint.
+  - Accurate buy cost (curve cost): sum of inner SystemProgram transfers from wallet to non‑ATA destinations, excluding ATA rent and network fee. Falls back to wallet lamport delta − tx fee − ATA rent if needed.
+- Guards:
+  - Ignore old history via process start time.
+  - Require positive token increase and positive curve cost.
+  - De‑duplication via signature sets and optional polling tip.
+- Poll fallback: disabled when WS is active; otherwise a light, tip‑based polling loop.
+
+4) Position Tracking & PnL
+- Positions are keyed by mint; buys accumulate tokens and cost (addBuy). State updates (e.g., peak) use update() to avoid re‑adding cost/tokens.
+- Cost basis: exact curve cost computed at detection time (excludes tx fee and ATA rent). This matches explorer line items that go into the bonding curve / protocol.
+- PnL math: BN‑safe integer math; never uses unsafe JS floats for ratios. PnL% = (solOut − cost) / cost with scaling, then converted to a small Number for logging.
+- Marketcap/price: uses Pump SDK bonding curve state; SOL amounts formatted as strings to avoid precision issues.
+- Migration/complete: tracking halts and position is closed (no auto‑sell), per SOW.
+- Manual close detection: in the tracker loop we use a single getMultipleAccountsInfo via `fetchBuyState` to retrieve bonding curve + associated user account; if ATA missing or its decoded SPL amount is zero → remove position immediately. Avoids extra RPC calls per tick.
+
+5) Sell Logic
+- Transaction build:
+  - ComputeBudget ixs (unit limit + optional priority fee, configurable in SOL).
+  - Pump SDK `sellInstructions` with slippage guard (MAX_SLIPPAGE_BPS).
+  - Skip preflight (configurable) for speed.
+- Confirmation (toggleable):
+  - WS two‑phase (default):
+    - Wait for `processed` quickly (fast signal); early resubmit if not observed by `CONFIRM_PROCESSED_TIMEOUT_MS`.
+    - Then wait for `confirmed` with `CONFIRM_CONFIRMED_TIMEOUT_MS`.
+    - Any `err` immediately treated as failure (no false “confirmed”).
+    - One controlled resubmit (total attempts = SELL_MAX_ATTEMPTS).
+  - Simple confirm (classic):
+    - `confirmTransaction` with chosen commitment and single resubmit on timeout/blockheight expiry.
+  - Position is only closed after real success; manual‑close detection provides a backstop if you close on wallet/UI.
+
+6) Strategy Toggle (Fixed vs Trailing)
+- `SELL_STRATEGY=fixed`: triggers when PnL% ≥ TP_PCT or ≤ SL_PCT.
+- `SELL_STRATEGY=trailing`: maintains `peakSolOut` and sells when current SOL‑out ≤ peak × (1 − TRAILING_SL_BPS/10000). Peak updates never sell on the same tick.
+- MIN_HOLD_MS guard prevents instant exits right after buy to absorb spread.
+
+7) Configuration (env) — key variables
+- Wallet/RPC:
+  - HELIUS_RPC_URL / HELIUS_WS_URL (or ERPC endpoints) — the code accepts any URLs here; names are historical.
+  - SOLANA_PRIVATE_KEY — base58/base64/JSON array supported.
+- Detection/loop:
+  - DETECTION_MODE=auto|ws|poll; POLL_INTERVAL_MS.
+  - TRACKER_ENABLED=true|false; SELL_ENABLED=true|false.
+  - RUN_FOR_SECONDS (optional short health runs).
+- Sell logic:
+  - SELL_STRATEGY=fixed|trailing; TP_PCT; SL_PCT; TRAILING_SL_BPS.
+  - MAX_SLIPPAGE_BPS (e.g., 1000=10%).
+  - PRIORITY_FEE_SOL (e.g., 0.01–0.02 works well under load).
+  - SKIP_PREFLIGHT=true|false.
+- Confirmation mode:
+  - CONFIRM_MODE=ws|simple (default ws).
+  - WS: CONFIRM_PROCESSED_TIMEOUT_MS (default 5000), CONFIRM_CONFIRMED_TIMEOUT_MS (12000).
+  - Simple: CONFIRM_SIMPLE_COMMITMENT=confirmed, CONFIRM_SIMPLE_TIMEOUT_MS (20000).
+  - SELL_MAX_ATTEMPTS=2.
+
+8) Rate‑Limit & Reliability Improvements Implemented
+- Primary WS detection; poll fallback disabled when WS active.
+- Removed redundant per‑tick balance RPC; decode ATA from the single multi‑account fetch.
+- BN‑safe computations and SOL formatting; removed unsafe Number conversions.
+- State update refactor (addBuy vs update) to prevent cost/tokens re‑addition.
+- Confirmation strategies hardened: early WS resubmit; err‑aware status checks; option to switch to classic confirmTransaction.
+
+9) Running the Bot
+- Dev: `npm run dev` (ts‑node).
+- Prod: `npm run build && npm start` (from dist/).
+- Health: `npm run health:dev` (5‑second run, no sells/tracking) if desired.
+- Docker: `docker build -t pumpfun-bot . && docker run --rm --env-file .env pumpfun-bot`.
+
+10) Observability
+- Console logs: lifecycle messages — detected buy, position opened, track updates, peak updates (trailing), sell triggers, submission, observation (processed), confirmation path, and position close.
+- JSON logs: `bot.log.json` for post‑trade analysis.
+
+11) Known Trade‑offs / Limitations (current)
+- In‑memory position store — restarts forget positions; an on‑disk snapshot is out of scope for MVP.
+- Confirmation timing depends on RPC/provider load; priority fees help significantly.
+- No Jito bundles yet; not required for MVP but useful under extreme contention.
+- Multi‑wallet orchestration not implemented (MVP: single wallet).
+
+12) Next Steps (recommended order)
+- Optional: Jito bundle submission toggle for sells (improves inclusion and reduces variance).
+- Optional: Persistence layer (local JSON snapshot) to restore open positions on restart.
+- Optional: Dynamic slippage or re‑quote on slippage error (up to MAX_SLIPPAGE_BPS) with a short cool‑down.
+- Optional: Per‑mint telemetry (short, human‑readable progress line) and thinning of verbose logs in steady state.
+- Optional: Strategy extensions (e.g., fixed TP + trailing lock‑in, or cool‑downs after sells).
+- Optional: Lightweight unit tests for PnL calc, trailing trigger math, and position state merges (BN handling).
+- Optional: CI lint/typecheck.
+
+13) Quick Troubleshooting
+- “Position closed but logs say confirmed”: Now guarded; we check `err` before success. If still seen, it’s likely a provider UI mismatch; confirm on explorer.
+- “429 Too Many Requests”: Ensure only one instance is running; prefer WS mode; avoid per‑tick extra RPC calls; keep priority fees on; consider dedicated RPC plan.
+- “PnL looks off”: Ensure basisSource: parsed‑tx is visible in the ‘Position opened’ log and that costLamports equals the curve/protocol amounts on explorer.
+
+This file summarizes the current state of the project, the rationale behind key choices, and actionable next steps. For any follow‑ups (e.g., Jito integration, persistence, or strategy tweaks), we can scope and implement incrementally.
+
