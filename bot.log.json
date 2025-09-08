@@ -775,3 +775,102 @@
 {"ts":"2025-09-08T04:55:10.629Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"3Y896SGpAA3SvcFU8c6yVNYmhrNhSXrqvG8YiG5TwQBYrY3mvA1ub5Z8pduFYibZa1P5jjS7c2JKgph8MYW1Xr3"}
 {"ts":"2025-09-08T04:55:11.231Z","level":"info","msg":"Shutting down..."}
 {"ts":"2025-09-08T04:55:11.232Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T04:59:31.425Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T04:59:32.097Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T04:59:32.099Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T04:59:32.099Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T04:59:33.268Z","level":"debug","msg":"Create log observed","sig":"WuWkk11haQkHzjR4dCpw4217P1j5GtUZ3jfwF2RXVjH8QCoixKtGceJvub84TRKVRFxswJwSuK7hCMZHwJQfTDh"}
+{"ts":"2025-09-08T04:59:34.406Z","level":"warn","msg":"Create decode failed","sig":"WuWkk11haQkHzjR4dCpw4217P1j5GtUZ3jfwF2RXVjH8QCoixKtGceJvub84TRKVRFxswJwSuK7hCMZHwJQfTDh","err":"Assignment to constant variable."}
+{"ts":"2025-09-08T04:59:38.790Z","level":"debug","msg":"Create log observed","sig":"4oDwKJxkq5UrJuGBELsXVKTNd4YWTypbvsxoxcqXwhwETAaBfGuB5wGJmEEwpm4HQw6mYtiXfsLyNNJzMuLjhBg7"}
+{"ts":"2025-09-08T04:59:39.218Z","level":"debug","msg":"Create log observed","sig":"4iUNhtJ2gQXrZbs6D5VbVNAyiSbUwyB1Xd92HjYfrzo7rWT5d1uCUSuGYG94kQBMNfpsETYQhX3TqU5hELkMSwPd"}
+{"ts":"2025-09-08T04:59:40.619Z","level":"warn","msg":"Create decode failed","sig":"4oDwKJxkq5UrJuGBELsXVKTNd4YWTypbvsxoxcqXwhwETAaBfGuB5wGJmEEwpm4HQw6mYtiXfsLyNNJzMuLjhBg7","err":"Assignment to constant variable."}
+{"ts":"2025-09-08T04:59:40.632Z","level":"warn","msg":"Create decode failed","sig":"4iUNhtJ2gQXrZbs6D5VbVNAyiSbUwyB1Xd92HjYfrzo7rWT5d1uCUSuGYG94kQBMNfpsETYQhX3TqU5hELkMSwPd","err":"Assignment to constant variable."}
+{"ts":"2025-09-08T04:59:40.653Z","level":"debug","msg":"Create log observed","sig":"5jVmxEA4zowMzojhbmJdCBsZeAwSNw6kc9n2MEMWd8YqZKMTAkTmHx3TpVhb7PSVXaXqvBRuFTkuWX1hDPYU7oPD"}
+{"ts":"2025-09-08T04:59:41.521Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T04:59:41.522Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:00:59.703Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:01:00.397Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:01:00.399Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:01:00.399Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:01:01.659Z","level":"debug","msg":"Create log observed","sig":"53a88YP9HQycEN7fcxLGhvpMNjm9RYAPUL4jP5Hh5uauUJCvNrnTJ3W2GGduYi1pKEfZUGdwBTpusMXAXZ1KjdZD"}
+{"ts":"2025-09-08T05:01:01.661Z","level":"debug","msg":"Create log observed","sig":"3Xcf8NMt3rku4YNLBA2WxzMmaS3xXUYzfJC4ooHVSWycFH5WnJN7nBbSszGkgtTDuQrH45C9CLwGHhYk8brW4qiW"}
+{"ts":"2025-09-08T05:01:02.708Z","level":"debug","msg":"Create log observed","sig":"4Uu8JKU1nYtZWHPY8wG31qh5jEDsm2sdNiL22LzRsHaBBg57VeuexWaU9883B5DFgWJkgbiRnwtSuxrHrEUkQX58"}
+{"ts":"2025-09-08T05:01:02.709Z","level":"debug","msg":"Create log observed","sig":"4vZbxMPur8AubeXCH5kYUUTKbt2yY2c6QmjNd7Sw4XfhApbPyf2J4c5vYjvBFGNBDkHpa2FUsaHe9sFapUf3bMpa"}
+{"ts":"2025-09-08T05:01:05.174Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"3Xcf8NMt3rku4YNLBA2WxzMmaS3xXUYzfJC4ooHVSWycFH5WnJN7nBbSszGkgtTDuQrH45C9CLwGHhYk8brW4qiW"}
+{"ts":"2025-09-08T05:01:06.669Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"4Uu8JKU1nYtZWHPY8wG31qh5jEDsm2sdNiL22LzRsHaBBg57VeuexWaU9883B5DFgWJkgbiRnwtSuxrHrEUkQX58"}
+{"ts":"2025-09-08T05:01:08.141Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"53a88YP9HQycEN7fcxLGhvpMNjm9RYAPUL4jP5Hh5uauUJCvNrnTJ3W2GGduYi1pKEfZUGdwBTpusMXAXZ1KjdZD"}
+{"ts":"2025-09-08T05:01:08.323Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"4vZbxMPur8AubeXCH5kYUUTKbt2yY2c6QmjNd7Sw4XfhApbPyf2J4c5vYjvBFGNBDkHpa2FUsaHe9sFapUf3bMpa"}
+{"ts":"2025-09-08T05:01:08.669Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:01:08.670Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:02:11.624Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:02:12.285Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:02:12.287Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:02:12.287Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:02:15.638Z","level":"debug","msg":"Create log observed","sig":"rotiGP3mQAeCfgJatitGRrL55yzowA88zQ6nrEYWFvznqdEKKYuQbThpBS9BMQnjGWtGnF6mGyUuSMDw99oEeDq"}
+{"ts":"2025-09-08T05:02:18.316Z","level":"debug","msg":"Create log observed","sig":"5eoBz6kyRoVzj61Xqn2vV6tzWtpPH1QK63FShyYGsuneD4ybCuTnPRyLkwGreJqFhQP1AKsFASapjZn4EHrqJLes"}
+{"ts":"2025-09-08T05:02:19.984Z","level":"debug","msg":"Create log observed","sig":"y3W1qy21Pkz4Ag7VgD5DrNPDpCGiEanbo7g5fPCWh92ivmcPTCaPRGsseFeCxxgEKEoyGLr8EmQs2WbP4UcBe7X"}
+{"ts":"2025-09-08T05:02:25.630Z","level":"debug","msg":"Create log observed","sig":"5ioq4SWV5Nrq39jYoesvBm6g2rLRT3oB1gXbXu5JRXnjdfiPTV7sNANiCPLbZCeuNmh2gphN7uBsxZz4J5tWivuz"}
+{"ts":"2025-09-08T05:02:29.441Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:02:29.442Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:04:42.414Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:04:43.108Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:04:43.111Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:04:43.111Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:04:44.315Z","level":"debug","msg":"Create log observed","sig":"2uPa9JwmAVFbgFNnRqVRNEKcGXSFxqdhthwHaGwQJAR6a7fnN3qWtNZM5EE312aJsUmGPgaxmmBAkbWn7H2Phi1A"}
+{"ts":"2025-09-08T05:04:44.973Z","level":"debug","msg":"Create log observed","sig":"4RggrcpdLv9npjxi9pwXffmSFgz14MqoFrE3FfBeK7ggyZtT2QNhikeBnndgoYXx6p5peAjUPyikKuX8gMzULdAj"}
+{"ts":"2025-09-08T05:04:47.693Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:04:47.694Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:10:29.121Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:10:30.021Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:10:30.023Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:10:30.023Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:10:32.140Z","level":"debug","msg":"Create log observed","sig":"5oJXiJuxHL2cKr4mDJs253wrGkYcEW5cU6xWEi8w3L9Ls4gt2xfhvH9biYf1X7Sh8rT6PYfzJ9RZaW3QkR4XJez4"}
+{"ts":"2025-09-08T05:10:38.025Z","level":"debug","msg":"Create log observed","sig":"3ju7E4b6B65bzYm5urbVcxLXrhyKQtBUpAcqkiXRtJ3tBfy4yxmo6qrC9ujpkjJJqxrsjQoWpM6a2uyqUvKxFqCq"}
+{"ts":"2025-09-08T05:10:39.578Z","level":"debug","msg":"Create log observed","sig":"3ac5RcweiEaDhoMJ3UEpUFmGc33h3CoKmbiz8whGUvd879kfxz2hjVKBYAvVKHYHDCPACY3Xq1ZN6ziB46JGSfx7"}
+{"ts":"2025-09-08T05:10:39.945Z","level":"debug","msg":"Create log observed","sig":"42yWz1gnbK6Kgsnghz6HpkhGhUbfesAxXeNQe9KsbqUr7bFPaQYmmU4TV51xMXhQbDrtLnH6tidtMzfXUDVHMoBq"}
+{"ts":"2025-09-08T05:10:41.644Z","level":"debug","msg":"Create log observed","sig":"sezPVhuTshemtG7EPtHYoVYtJBnjZkvi9fjZm9nBqJ4QXcApneU6cWnVuzUvhmHC2xvS8aYsyUCSmWFsmHh3pW4"}
+{"ts":"2025-09-08T05:10:42.079Z","level":"debug","msg":"Create log observed","sig":"2dSbb5frcqFYcW8tNPLCDqsA5H6Xom6LCDRqC6NPemjJTmf5EPj5ZASv4xwZVfnzfYjTK2CAmCQy76iSS6RfFrkR"}
+{"ts":"2025-09-08T05:10:44.261Z","level":"debug","msg":"Create log observed","sig":"25JJsR3Ev2oXQhVqSJmW3XdmNQZHvpMzKuposLipCFnq5UHt5v5nVPB7mDxvsVp9Xb457aTjxMNMWWNTNZj3hhwH"}
+{"ts":"2025-09-08T05:10:46.819Z","level":"debug","msg":"Create log observed","sig":"5wf7hqrBM3tpoLzUY6U6fo1EWSnGxHhSenfvNpvrpM2FmUKmdeggronPmdr9xk8CA11SQYsm1e9SytZj65f4fc4L"}
+{"ts":"2025-09-08T05:10:47.925Z","level":"debug","msg":"Create log observed","sig":"4QB6rQLqbXJsU8NoXv5UEUrf1pqak24KcffPgnGx1v7b5bGKRrS3nwRrvjxihQhJF6C5d9vdpLB8vh5Zgz9tpq9k"}
+{"ts":"2025-09-08T05:10:49.729Z","level":"debug","msg":"Create log observed","sig":"5DbmAqkePbUJTcTZEaE83cUZFQjFdnKDRJcKMYbUVykjDSMf29rw4msm1z9gL396TSQ2gtPLcWbX8NbkJMQnpczg"}
+{"ts":"2025-09-08T05:10:53.084Z","level":"debug","msg":"Create log observed","sig":"53rzjQHiMdvgHyvHwdJLuAffCTpXXEMFVhzqTgGxDmfkR8JW44KGwdpjpM2J3TTLEsctYs5txHEdbJ4j4jLepYmg"}
+{"ts":"2025-09-08T05:10:53.769Z","level":"debug","msg":"Create log observed","sig":"4rCo8xquDuT9G39ss34p1jcQ6aDsKXjft4KzZftaAU7FvfpmSTRGYFBGDCQwoMUH7YejzXP8iCzgDWkQaMqfivQM"}
+{"ts":"2025-09-08T05:10:55.087Z","level":"debug","msg":"Create log observed","sig":"3SvRvW94bTmrk1J4T6zMkSmzLXZH3zbkhft9rn4XsXa31HQGGzLwYqzfJWzf4WyU8cqyW6apFZ2GmtkKBYCn1hkv"}
+{"ts":"2025-09-08T05:10:57.474Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:10:57.476Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:13:11.433Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:13:12.106Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:13:12.108Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:13:12.108Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:13:13.919Z","level":"debug","msg":"Create log observed","sig":"3RfCoxLWyX3qrqQomUUvChBTSKPR49V4atDLZHMEU19RF4tDRvkTfPSkdLpTpEvdQxWk1E5oFgVj5vCB5ndzUS12"}
+{"ts":"2025-09-08T05:13:16.033Z","level":"debug","msg":"Create log observed","sig":"67cTyPg3Bzom6KDmTkjdKnwoK2N1zPod7yCtUSK2srWoLLLuwVPzNXmVLXKqZZXv23i9ZACEr6tjLPtw1XNVTipt"}
+{"ts":"2025-09-08T05:13:16.395Z","level":"debug","msg":"Create log observed","sig":"5LdCmqBTD5iGoDQeTFAQkoJgc6grrXxoGkQmGncQxKq8psbdeovyPvGMzFK51NP2swNA4xz7qpWfJTU5kgPfFUWM"}
+{"ts":"2025-09-08T05:13:16.969Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:13:16.970Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:15:56.501Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:15:57.183Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:15:57.186Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:15:57.187Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:15:59.748Z","level":"debug","msg":"Create log observed","sig":"3CSEphxYvXyfN5ooHpsDzJfkUNH54LQkf3pYmiGkKksBnWqMNFHAocsEvwFtRyzgTfqZvyFLQwzj2fQx9YoY7FCk"}
+{"ts":"2025-09-08T05:16:02.327Z","level":"debug","msg":"Create log observed","sig":"5armxxwen6KtzEtY85Y3RnVbSL6yHGqvA31FBZoTsN1WJXoNFg4tbRfRmTesvrFZFARuCQ1wMpwbpfPLJvzRWWVw"}
+{"ts":"2025-09-08T05:16:03.618Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"3CSEphxYvXyfN5ooHpsDzJfkUNH54LQkf3pYmiGkKksBnWqMNFHAocsEvwFtRyzgTfqZvyFLQwzj2fQx9YoY7FCk"}
+{"ts":"2025-09-08T05:16:04.635Z","level":"debug","msg":"Create log observed","sig":"WQ8q97uaVDagiCPBg3PMR4XJu4xAcWCM2c1PJg9UwH4f5TwXf5XZ62VPqX55EUg86HqkuLVnAcn6noDXzNtxXtP"}
+{"ts":"2025-09-08T05:16:06.049Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"5armxxwen6KtzEtY85Y3RnVbSL6yHGqvA31FBZoTsN1WJXoNFg4tbRfRmTesvrFZFARuCQ1wMpwbpfPLJvzRWWVw"}
+{"ts":"2025-09-08T05:16:06.599Z","level":"debug","msg":"Create log observed","sig":"3AfNSSGTwMJX57DxVmRmBdzY2axeyAwVehajgfktPSKZSx6chEgUpMnEZTpvV5mt1padxCk5v9XFoQNV19R4ufe3"}
+{"ts":"2025-09-08T05:16:08.940Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"WQ8q97uaVDagiCPBg3PMR4XJu4xAcWCM2c1PJg9UwH4f5TwXf5XZ62VPqX55EUg86HqkuLVnAcn6noDXzNtxXtP"}
+{"ts":"2025-09-08T05:16:09.570Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:16:09.572Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:20:00.922Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:20:01.591Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:20:01.595Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:20:01.595Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:20:03.319Z","level":"debug","msg":"Create log observed","sig":"2Gdmf9mtGQtATRU6649JuiSuZqYDKQhxqR5Zg7pW6bJ2QPf8e1R57DvHjaCi4mTytdhuZq6a5E7aRPYyEgZh5CU5"}
+{"ts":"2025-09-08T05:20:04.434Z","level":"debug","msg":"Create log observed","sig":"VEwKMiCCFJ8xr4ZRMb7mH6HghpK9DFsuyXiLnyY7zmhX2SDh8FeMqtcSjiBSjbUmeAQajDj8j9GDTQroQpBjsjk"}
+{"ts":"2025-09-08T05:20:07.814Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"2Gdmf9mtGQtATRU6649JuiSuZqYDKQhxqR5Zg7pW6bJ2QPf8e1R57DvHjaCi4mTytdhuZq6a5E7aRPYyEgZh5CU5"}
+{"ts":"2025-09-08T05:20:07.837Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"VEwKMiCCFJ8xr4ZRMb7mH6HghpK9DFsuyXiLnyY7zmhX2SDh8FeMqtcSjiBSjbUmeAQajDj8j9GDTQroQpBjsjk"}
+{"ts":"2025-09-08T05:20:08.233Z","level":"debug","msg":"Create log observed","sig":"22ssCHzDmM4sDezQVJRESrTKU6tcrviazR5bH5BSohxgNozoFFq4pgaqtvhax2AiKUR8FKeNhKs8o5VPqYriibDw"}
+{"ts":"2025-09-08T05:20:08.776Z","level":"debug","msg":"Create log observed","sig":"4VBN8wadgLCPqzCyBgb3PT9stwnasJmcyfpsTMnXVjPppCmSTxqJ5K3Jj4tNn1vLKoeqv5iwacjEydBC4KaVw5ai"}
+{"ts":"2025-09-08T05:20:11.273Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"22ssCHzDmM4sDezQVJRESrTKU6tcrviazR5bH5BSohxgNozoFFq4pgaqtvhax2AiKUR8FKeNhKs8o5VPqYriibDw"}
+{"ts":"2025-09-08T05:20:12.079Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:20:12.081Z","level":"info","msg":"Shutting down..."}

@@ -8,7 +8,7 @@ import { Tracker } from './tracker';
 import { PumpSdk, getBuySolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
 import { startOnchainCreateDetection } from './sources/onchainCreateDetector';
 import { fetchJsonMetadata } from './sources/metadata';
-import { evaluateLaunch } from './filters';
+// filters intentionally disabled for now; we're focusing on decode + metadata
 
 async function main() {
   validateConfig(config);
@@ -115,7 +115,7 @@ async function main() {
           symbol: evt.symbol,
           sig: evt.signature,
         });
-        // Fetch and evaluate metadata (no buys yet)
+        // Fetch metadata (no buys/filters yet)
         let metadata: any = null;
         try {
           metadata = await fetchJsonMetadata(evt.uri, config.metadataTimeoutMs);
@@ -137,14 +137,6 @@ async function main() {
               }
             : null,
         };
-        const decision = evaluateLaunch(candidate as any, config);
-        logger.info('Launch evaluation', {
-          mint: evt.mint,
-          accepted: decision.accepted,
-          reasons: decision.reasons.join(','),
-          haveImage: Boolean(candidate.metadata?.image),
-          haveSocial: Boolean(candidate.metadata && (candidate.metadata.twitter || candidate.metadata.telegram || candidate.metadata.website)),
-        });
         const desc = (candidate.metadata?.description || '').slice(0, 160);
         logger.info('Launch metadata', {
           mint: evt.mint,
