@@ -42,143 +42,98 @@ export function startOnchainCreateDetection({
     if (processed.has(signature) || inFlight.has(signature)) return;
     inFlight.add(signature);
     try {
-      // Small initial delay to allow RPC to index + parse
-      await new Promise((r) => setTimeout(r, 400));
-
-      // Fetch parsed tx at confirmed with short retries
-      let tx = await connection.getParsedTransaction(signature, {
+      // 1) Fetch RAW tx quickly at processed, with short retries
+      let raw = await connection.getTransaction(signature, {
         maxSupportedTransactionVersion: 0,
-        commitment: 'confirmed',
-      });
+        commitment: 'processed' as any,
+      } as any);
       let attempts = 0;
-      while (!tx && attempts < 25) {
-        await new Promise((r) => setTimeout(r, 200));
+      while (!raw && attempts < 30) {
+        await new Promise((r) => setTimeout(r, 150));
         attempts++;
-        tx = await connection.getParsedTransaction(signature, {
+        raw = await connection.getTransaction(signature, {
           maxSupportedTransactionVersion: 0,
-          commitment: 'confirmed',
-        });
+          commitment: 'processed' as any,
+        } as any);
       }
-      if (!tx) {
-        logger.debug('Create tx not yet available', { sig: signature });
+      if (!raw) {
+        logger.debug('Tx not found at processed yet', { sig: signature });
         return;
       }
-      if (tx.meta?.err) return;
+      if (raw.meta?.err) return;
 
-      const pumpPid = PUMP_PROGRAM_ID.toBase58();
-      const tryDecode = (ixs: any[], keys: string[], slot: number, blockTime: number | null): boolean => {
-        for (const ix of ixs) {
-          const pid = (ix.programId || ix.programIdIndex !== undefined
-            ? (ix.programId?.toBase58?.() || keys[ix.programIdIndex])
-            : undefined) as string | undefined;
-          if (!pid || pid !== pumpPid) continue;
-          const dataB64: string | undefined = (ix as any).data;
-          const acctIdxs: number[] = ((ix as any).accounts || []) as number[];
-          if (!dataB64 || !acctIdxs?.length) continue;
-          try {
-            const decoded = (program.coder as any).instruction.decode(Buffer.from(dataB64, 'base64'));
-            if (!decoded || decoded.name !== 'create') continue;
-            if (acctIdxs.length <= 7) continue;
-            const mint = keys[Number(acctIdxs[0])];
-            const user = keys[Number(acctIdxs[7])];
-            if (!mint || !user) continue;
-            const { name, symbol, uri, creator } = decoded.data as {
-              name: string;
-              symbol: string;
-              uri: string;
-              creator: PublicKey;
-            };
-            const evt: NewLaunchEvent = {
-              signature,
-              slot,
-              blockTime,
-              mint: String(mint),
-              creator: (creator?.toBase58?.() as string) || String(user),
-              name,
-              symbol,
-              uri,
-            };
-            logger.info('Create detected', {
-              signature: evt.signature,
-              mint: evt.mint,
-              creator: evt.creator,
-              name: evt.name,
-              symbol: evt.symbol,
-            });
-            onCreate(evt);
-            processed.add(signature);
-            return true;
-          } catch {
-            continue;
-          }
-        }
-        return false;
-      };
-
-      // Attempt decode from parsed tx
-      let msg: any = tx.transaction.message as any;
-      let keys: string[] = (msg.accountKeys || []).map((k: any) =>
-        typeof k === 'string' ? k : ('pubkey' in k ? k.pubkey.toBase58() : String(k)),
+      // 2) Decode locally from compiled instructions
+      const msg: any = raw.transaction.message as any;
+      const staticKeys: string[] = (msg.staticAccountKeys || msg.accountKeys || []).map((k: any) =>
+        typeof k === 'string' ? k : k.toBase58?.() || ('pubkey' in k ? k.pubkey.toBase58() : String(k)),
       );
-      let ixs: any[] = (msg.instructions || []) as any[];
-      let ok = tryDecode(ixs, keys, tx.slot, tx.blockTime ?? null);
-      if (ok) return;
+      const compiled: any[] = (msg.compiledInstructions || msg.instructions || []) as any[];
+      const pumpPid = PUMP_PROGRAM_ID.toBase58();
+      let createEvent: NewLaunchEvent | null = null;
 
-      // Brief re-fetch and retry decode in case parsing lags
-      for (let i = 0; i < 5 && !ok; i++) {
-        await new Promise((r) => setTimeout(r, 200));
-        const refreshed = await connection.getParsedTransaction(signature, {
-          maxSupportedTransactionVersion: 0,
-          commitment: 'confirmed',
-        });
-        if (refreshed) {
-          msg = refreshed.transaction.message as any;
-          keys = (msg.accountKeys || []).map((k: any) =>
-            typeof k === 'string' ? k : ('pubkey' in k ? k.pubkey.toBase58() : String(k)),
-          );
-          ixs = (msg.instructions || []) as any[];
-          ok = tryDecode(ixs, keys, refreshed.slot, refreshed.blockTime ?? null);
-          if (ok) return;
+      for (const ix of compiled) {
+        const pidIdx = (ix as any).programIdIndex as number | undefined;
+        const programId = typeof pidIdx === 'number' && pidIdx >= 0 && pidIdx < staticKeys.length ? staticKeys[pidIdx] : undefined;
+        if (programId !== pumpPid) continue;
+
+        const d = (ix as any).data;
+        const dataBuf = typeof d === 'string' ? Buffer.from(d, 'base64') : Buffer.from(d ?? []);
+        const acctIdxs: number[] = Array.isArray((ix as any).accounts) ? (ix as any).accounts as number[] : [];
+        if (!dataBuf.length || acctIdxs.length === 0) continue;
+
+        try {
+          const decoded = (program.coder as any).instruction.decode(dataBuf);
+          if (!decoded || decoded.name !== 'create') continue;
+          if (acctIdxs.length <= 7) continue;
+          const mint = staticKeys[Number(acctIdxs[0])];
+          const user = staticKeys[Number(acctIdxs[7])];
+          if (!mint || !user) continue;
+          const { name, symbol, uri, creator } = decoded.data as {
+            name: string;
+            symbol: string;
+            uri: string;
+            creator?: PublicKey;
+          };
+          createEvent = {
+            signature,
+            slot: raw.slot,
+            blockTime: raw.blockTime ?? null,
+            mint,
+            creator: creator?.toBase58?.() || user,
+            name,
+            symbol,
+            uri,
+          };
+          break;
+        } catch {
+          continue;
         }
       }
 
-      // Fallback: raw tx decode
+      if (!createEvent) {
+        logger.debug('No decodable create instruction found in tx', { sig: signature });
+        return;
+      }
+
+      // 3) Confirm before emitting
       try {
-        const raw = await connection.getTransaction(signature, {
-          maxSupportedTransactionVersion: 0,
-          commitment: 'confirmed',
-        } as any);
-        if (raw) {
-          const msgRaw: any = raw.transaction.message as any;
-          const rawKeys: string[] = (msgRaw.accountKeys || msgRaw.staticAccountKeys || []).map((k: any) =>
-            typeof k === 'string' ? k : k.toBase58?.() || String(k),
-          );
-          const rawIxs: any[] = (msgRaw.instructions || msgRaw.compiledInstructions || []) as any[];
-          ok = tryDecode(rawIxs, rawKeys, raw.slot, raw.blockTime ?? null);
-          if (!ok) {
-            // Detailed trace to diagnose shape
-            try {
-              for (const [idx, rix] of rawIxs.entries()) {
-                const pid = rawKeys[(rix as any).programIdIndex];
-                if (pid === pumpPid) {
-                  const d = (rix as any).data;
-                  const b = typeof d === 'string' ? Buffer.from(d, 'base64') : Buffer.alloc(0);
-                  const hex = b.slice(0, 12).toString('hex');
-                  const accs = ((rix as any).accounts || []).length;
-                  logger.debug('Pump ix present but decode failed', { sig: signature, ixIndex: idx, dataLen: b.length, headHex: hex, accounts: accs });
-                }
-              }
-            } catch {}
-          }
-          if (ok) return;
-        }
+        await connection.confirmTransaction(signature, 'confirmed');
       } catch (e) {
-        logger.debug('Raw tx decode fallback failed', { sig: signature, err: String((e as any)?.message || e) });
+        logger.warn('Create tx failed confirmation', { sig: signature, err: String((e as any)?.message || e) });
+        return;
       }
 
-      logger.debug('No decodable create instruction found in tx', { sig: signature });
+      logger.info('Create detected and confirmed', {
+        signature: createEvent.signature,
+        mint: createEvent.mint,
+        creator: createEvent.creator,
+        name: createEvent.name,
+        symbol: createEvent.symbol,
+      });
+      onCreate(createEvent);
+      processed.add(signature);
     } catch (e) {
-      logger.warn('Create decode failed', { sig: signature, err: String((e as any)?.message || e) });
+      logger.warn('Create processing failed', { sig: signature, err: String((e as any)?.message || e) });
     } finally {
       inFlight.delete(signature);
     }

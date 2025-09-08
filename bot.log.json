@@ -874,3 +874,27 @@
 {"ts":"2025-09-08T05:20:11.273Z","level":"debug","msg":"No decodable create instruction found in tx","sig":"22ssCHzDmM4sDezQVJRESrTKU6tcrviazR5bH5BSohxgNozoFFq4pgaqtvhax2AiKUR8FKeNhKs8o5VPqYriibDw"}
 {"ts":"2025-09-08T05:20:12.079Z","level":"info","msg":"Shutting down..."}
 {"ts":"2025-09-08T05:20:12.081Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:27:48.637Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:27:49.412Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:27:49.414Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:27:49.414Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:27:50.741Z","level":"debug","msg":"Create log observed","sig":"67arzpFBtAXryJRJnR4JiPWynP8yN6u3q9o1LuqmhgHepNqRYTW7eRJ29Zx4WBhNSqs9y43KzdNomyTXMV3gzBgz"}
+{"ts":"2025-09-08T05:27:50.742Z","level":"warn","msg":"Create decode failed","sig":"67arzpFBtAXryJRJnR4JiPWynP8yN6u3q9o1LuqmhgHepNqRYTW7eRJ29Zx4WBhNSqs9y43KzdNomyTXMV3gzBgz","err":"Using Connection with default commitment: `confirmed`, but method requires at least `confirmed`"}
+{"ts":"2025-09-08T05:27:53.403Z","level":"debug","msg":"Create log observed","sig":"3TkewRCUdDidkQ12RWxtJ9EsNL5yHzSU2YQt8FAQoFcLTcEr3wfgNWyb7VBqjAoEKfbNqNyp1BMrRrT9G5fMv82E"}
+{"ts":"2025-09-08T05:27:53.404Z","level":"warn","msg":"Create decode failed","sig":"3TkewRCUdDidkQ12RWxtJ9EsNL5yHzSU2YQt8FAQoFcLTcEr3wfgNWyb7VBqjAoEKfbNqNyp1BMrRrT9G5fMv82E","err":"Using Connection with default commitment: `confirmed`, but method requires at least `confirmed`"}
+{"ts":"2025-09-08T05:27:54.654Z","level":"debug","msg":"Create log observed","sig":"4kafkrKrWuA2rcygyZC69AbjPnEkxrSwhqwcSZXZiZfZMmEkBq5NoqXTT4ZwDeqp1FF1FvZKimtTWkCH8myTM14U"}
+{"ts":"2025-09-08T05:27:54.655Z","level":"warn","msg":"Create decode failed","sig":"4kafkrKrWuA2rcygyZC69AbjPnEkxrSwhqwcSZXZiZfZMmEkBq5NoqXTT4ZwDeqp1FF1FvZKimtTWkCH8myTM14U","err":"Using Connection with default commitment: `confirmed`, but method requires at least `confirmed`"}
+{"ts":"2025-09-08T05:27:55.384Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:27:55.385Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:34:27.524Z","level":"info","msg":"Bot started","rpcUrl":"https://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wsUrl":"wss://edge.erpc.global?api-key=53f624e3-a226-4c4b-a03a-2d7ffe6472cd","wallet":"7aUrQwhRzMZzT9FB7uVkS7WfGNhxBAHESozDQeSUePVu","tpPct":0.3,"slPct":-0.2,"sellStrategy":"fixed","trailingSlBps":3000,"maxSlippageBps":1000,"priorityFeeSol":0.005,"skipPreflight":true}
+{"ts":"2025-09-08T05:34:28.296Z","level":"info","msg":"WS logs subscription active","id":0}
+{"ts":"2025-09-08T05:34:28.298Z","level":"debug","msg":"Subscribed to Pump logs","commitment":"processed"}
+{"ts":"2025-09-08T05:34:28.298Z","level":"info","msg":"On-chain create detector active","subId":1}
+{"ts":"2025-09-08T05:34:29.334Z","level":"debug","msg":"Create log observed","sig":"4siEgGQMzJBdP7c3FvcC4avmWqLXeBbYrrSuqxFP2pEgSGcCQ5HWXLbNtcmfED2djn1HPTAQzhiacjaH2f3Kxy1i"}
+{"ts":"2025-09-08T05:34:29.336Z","level":"warn","msg":"Create processing failed","sig":"4siEgGQMzJBdP7c3FvcC4avmWqLXeBbYrrSuqxFP2pEgSGcCQ5HWXLbNtcmfED2djn1HPTAQzhiacjaH2f3Kxy1i","err":"Using Connection with default commitment: `confirmed`, but method requires at least `confirmed`"}
+{"ts":"2025-09-08T05:34:31.909Z","level":"debug","msg":"Create log observed","sig":"34XMBeL9eKH34J9c7QchcpEmmo2H4cXkqisxxkEbCRWkoC9hcauJQV8nTm3FQaqEeJgfgJoiNKb9zLayNiDsVrnz"}
+{"ts":"2025-09-08T05:34:31.910Z","level":"warn","msg":"Create processing failed","sig":"34XMBeL9eKH34J9c7QchcpEmmo2H4cXkqisxxkEbCRWkoC9hcauJQV8nTm3FQaqEeJgfgJoiNKb9zLayNiDsVrnz","err":"Using Connection with default commitment: `confirmed`, but method requires at least `confirmed`"}
+{"ts":"2025-09-08T05:34:34.637Z","level":"debug","msg":"Create log observed","sig":"2ksP6KBKy4RwFoxmf1qChJN6MyW23g5oELLFznd2RoNeyKgSftKFyuZ9KYXxbvnM48HDW61J7yztqJS2PK2aPMGk"}
+{"ts":"2025-09-08T05:34:34.637Z","level":"warn","msg":"Create processing failed","sig":"2ksP6KBKy4RwFoxmf1qChJN6MyW23g5oELLFznd2RoNeyKgSftKFyuZ9KYXxbvnM48HDW61J7yztqJS2PK2aPMGk","err":"Using Connection with default commitment: `confirmed`, but method requires at least `confirmed`"}
+{"ts":"2025-09-08T05:34:35.020Z","level":"info","msg":"Shutting down..."}
+{"ts":"2025-09-08T05:34:35.021Z","level":"info","msg":"Shutting down..."}
