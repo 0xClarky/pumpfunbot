@@ -73,6 +73,40 @@ async function main() {
   try { store.seedKnownCreators(config.blacklistCreators, 'env-blacklist'); } catch {}
 
   let detector: { stop: () => void } | null = null;
+  // --- Auto-buy queue (serialize buys to avoid rate limits) ---
+  const buyQueue: Array<{ mint: string; createdAtMs: number }> = [];
+  const queuedMints = new Set<string>();
+  let processingBuy = false;
+  let lastBuyAtMs = 0;
+
+  async function processBuyQueue() {
+    if (processingBuy) return;
+    if (buyQueue.length === 0) return;
+    processingBuy = true;
+    try {
+      const item = buyQueue.shift();
+      if (item) {
+        queuedMints.delete(item.mint);
+        const ageMs = Date.now() - item.createdAtMs;
+        if (ageMs > config.maxCreateAgeMs) {
+          logger.warn('Skipping stale buy candidate', { mint: item.mint, ageMs });
+        } else {
+          const gap = Date.now() - lastBuyAtMs;
+          const waitMs = config.minBuyGapMs > gap ? (config.minBuyGapMs - gap) : 0;
+          if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
+          try {
+            await attemptAutoBuy({ connection: httpConfirmed, wallet: kp, mint: new PublicKey(item.mint), createdAtMs: item.createdAtMs });
+          } catch (e) {
+            logger.warn('Auto-buy attempt (queued) failed', { mint: item.mint, err: String((e as any)?.message || e) });
+          }
+          lastBuyAtMs = Date.now();
+        }
+      }
+    } finally {
+      processingBuy = false;
+      if (buyQueue.length > 0) void processBuyQueue();
+    }
+  }
   if (config.detectionEnabled) {
     detector = startBuyDetection({
       connection,
@@ -222,18 +256,17 @@ async function main() {
         } catch {}
         // Note: we are not buying yet; this logs the pass/fail signals.
 
-        // Auto-buy decision
+        // Auto-buy decision: enqueue and process via serialized queue
         if (config.autoBuyEnabled) {
           if (hardFails.length === 0) {
-            try {
-              await attemptAutoBuy({
-                connection: httpConfirmed,
-                wallet: kp,
-                mint: new PublicKey(evt.mint),
-                createdAtMs: (evt.blockTime ? evt.blockTime * 1000 : Date.now()),
-              });
-            } catch (e) {
-              logger.warn('Auto-buy attempt failed', { err: String((e as any)?.message || e) });
+            const createdAtMs = evt.blockTime ? evt.blockTime * 1000 : Date.now();
+            if (!queuedMints.has(evt.mint)) {
+              queuedMints.add(evt.mint);
+              buyQueue.push({ mint: evt.mint, createdAtMs });
+              logger.info('Launch accepted, queued for buy', { mint: evt.mint });
+              void processBuyQueue();
+            } else {
+              logger.debug('Mint already queued, skipping duplicate', { mint: evt.mint });
             }
           } else {
             logger.debug('Auto-buy skipped due to hard fails', { mint: evt.mint, hardFails });
