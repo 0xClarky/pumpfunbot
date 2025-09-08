@@ -50,6 +50,20 @@ export type Config = {
   imageProbeTimeoutMs: number;
   imageProbeMaxBytes: number;
   imageGateways: string[];
+  // Auto-buy + Jito/Helius Sender
+  autoBuyEnabled: boolean;
+  buySol: number; // SOL amount per buy
+  minCreateMs: number; // wait at least this after create before buying
+  maxCreateAgeMs: number; // do not buy if older than this
+  minBuyGapMs: number; // cooldown between buys
+  maxQuoteDriftBps: number; // allowed drift between quote and final
+  jitoEnabled: boolean;
+  jitoTipSol: number;
+  jitoTipAccount?: string | undefined;
+  jitoTipAccounts: string[]; // optional list; pick randomly if provided
+  heliusSenderUrl?: string | undefined; // if not set, fall back to heliusRpcUrl
+  senderCommitment: 'processed' | 'confirmed';
+  senderWaitMs: number;
 };
 
 function parsePrivateKey(input?: string): Uint8Array {
@@ -80,16 +94,15 @@ function parsePrivateKey(input?: string): Uint8Array {
 
 export const config: Config = {
   heliusApiKey: process.env.HELIUS_API_KEY || '',
+  // Primary RPC/WS should use ERPC (or explicit HELIUS_* URLs if you set them)
   heliusRpcUrl:
     process.env.HELIUS_RPC_URL ||
-    (process.env.HELIUS_API_KEY
-      ? `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`
-      : ''),
+    process.env.ERPC_RPC_URL ||
+    '',
   heliusWsUrl:
     process.env.HELIUS_WS_URL ||
-    (process.env.HELIUS_API_KEY
-      ? `wss://rpc.helius.xyz/?api-key=${process.env.HELIUS_API_KEY}`
-      : ''),
+    process.env.ERPC_WS_URL ||
+    '',
   privateKey: parsePrivateKey(process.env.SOLANA_PRIVATE_KEY),
   maxSlippageBps: Number(process.env.MAX_SLIPPAGE_BPS || 1000),
   tpPct: Number(process.env.TP_PCT || 0.35),
@@ -131,12 +144,28 @@ export const config: Config = {
   imageProbeMaxBytes: Number(process.env.IMAGE_PROBE_MAX_BYTES || 8192),
   imageGateways: (process.env.IMAGE_GATEWAYS || 'ipfs.io,cloudflare-ipfs.com,metadata.pumplify.eu')
     .split(',').map(s => s.trim()).filter(Boolean),
+  autoBuyEnabled: (process.env.AUTO_BUY_ENABLED || 'false').toLowerCase() === 'true',
+  buySol: Number(process.env.BUY_SOL || 0.05),
+  minCreateMs: Number(process.env.MIN_CREATE_MS || 300),
+  maxCreateAgeMs: Number(process.env.MAX_CREATE_AGE_MS || 8000),
+  minBuyGapMs: Number(process.env.MIN_BUY_GAP_MS || 1500),
+  maxQuoteDriftBps: Number(process.env.MAX_QUOTE_DRIFT_BPS || 100),
+  jitoEnabled: (process.env.JITO_ENABLED || 'true').toLowerCase() === 'true',
+  jitoTipSol: Number(process.env.JITO_TIP_SOL || 0.001),
+  jitoTipAccount: process.env.JITO_TIP_ACCOUNT || undefined,
+  jitoTipAccounts: (process.env.JITO_TIP_ACCOUNTS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean),
+  heliusSenderUrl: process.env.HELIUS_SENDER_URL || undefined,
+  senderCommitment: ((process.env.SENDER_COMMITMENT || 'processed') as any),
+  senderWaitMs: Number(process.env.SENDER_WAIT_MS || 4000),
 };
 
 export function validateConfig(cfg: Config) {
   const errs: string[] = [];
-  if (!cfg.heliusRpcUrl) errs.push('HELIUS_RPC_URL or HELIUS_API_KEY required');
-  if (!cfg.heliusWsUrl) errs.push('HELIUS_WS_URL or HELIUS_API_KEY required');
+  if (!cfg.heliusRpcUrl) errs.push('HELIUS_RPC_URL or ERPC_RPC_URL required');
+  if (!cfg.heliusWsUrl) errs.push('HELIUS_WS_URL or ERPC_WS_URL required');
   if (!cfg.privateKey?.length) errs.push('SOLANA_PRIVATE_KEY required');
   if (cfg.maxSlippageBps <= 0 || cfg.maxSlippageBps > 5000)
     errs.push('MAX_SLIPPAGE_BPS must be between 1 and 5000');

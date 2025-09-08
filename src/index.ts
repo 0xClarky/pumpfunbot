@@ -11,6 +11,7 @@ import { fetchJsonMetadata } from './sources/metadata';
 import { store } from './store_sqlite';
 import { checkSocial } from './gates/social';
 import { computeCreatorInitialBuyLamports, findFunderOneHop } from './gates/onchain';
+import { attemptAutoBuy } from './autoBuy';
 // filters intentionally disabled for now; we're focusing on decode + metadata
 
 async function main() {
@@ -220,6 +221,24 @@ async function main() {
           store.upsertCreatorOnCreate(evt.creator, evt.signature);
         } catch {}
         // Note: we are not buying yet; this logs the pass/fail signals.
+
+        // Auto-buy decision
+        if (config.autoBuyEnabled) {
+          if (hardFails.length === 0) {
+            try {
+              await attemptAutoBuy({
+                connection: httpConfirmed,
+                wallet: kp,
+                mint: new PublicKey(evt.mint),
+                createdAtMs: (evt.blockTime ? evt.blockTime * 1000 : Date.now()),
+              });
+            } catch (e) {
+              logger.warn('Auto-buy attempt failed', { err: String((e as any)?.message || e) });
+            }
+          } else {
+            logger.debug('Auto-buy skipped due to hard fails', { mint: evt.mint, hardFails });
+          }
+        }
       },
       commitment: 'processed',
     });

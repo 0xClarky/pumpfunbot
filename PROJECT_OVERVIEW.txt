@@ -114,4 +114,110 @@ Pump.fun Sell Bot — Project Overview and Next Steps
 - “PnL looks off”: Ensure basisSource: parsed‑tx is visible in the ‘Position opened’ log and that costLamports equals the curve/protocol amounts on explorer.
 
 This file summarizes the current state of the project, the rationale behind key choices, and actionable next steps. For any follow‑ups (e.g., Jito integration, persistence, or strategy tweaks), we can scope and implement incrementally.
+Pump.fun Sniper Bot — Project Overview
+
+1) What We’re Building
+- Goal: A low‑latency sniper bot for pump.fun that detects brand‑new token launches on‑chain, evaluates them with strict, fast signals, and auto‑buys the best candidates with robust execution (Jito/Helius Sender), then manages exits.
+- Priorities: correctness of on‑chain decoding, minimal false positives, configurable buy conditions, and safe, observable execution.
+
+2) What’s Built So Far (in detail)
+- On‑chain create detection (robust):
+  - Subscribes to Pump program logs and fetches/decodes create transactions.
+  - Handles v0 transactions and address table lookups (uses static + loaded addresses).
+  - Scans both top‑level and inner (CPI) instructions for Pump.create.
+  - Infers mint even when accounts are omitted via postTokenBalances and parsed SPL‑Token initialize ix.
+  - File: src/sources/onchainCreateDetector.ts
+
+- Metadata + social intel:
+  - Fetches off‑chain JSON (timeout‑bounded) and normalizes fields.
+  - Social gate: Twitter handle must contain token name or symbol (case‑insensitive, alnum). Toggleable.
+  - Image gate exists but currently disabled per config.
+  - Files: src/sources/metadata.ts, src/gates/social.ts
+
+- On‑chain gating:
+  - Creator initial buy: parses inner transfers to compute creator’s SOL spent in the create tx (ex‑ATA rent). Rejects if above threshold.
+  - Funder detection (1‑hop): scans recent signatures (limit + timeout), checks creator balance deltas, and searches both top‑level and inner parsed transfers to identify the funding source.
+  - Block if funder is also a known token creator (or manually blacklisted if enabled).
+  - File: src/gates/onchain.ts
+
+- Persistence (SQLite with JSON fallback):
+  - Tables: creators, known_creators, creator_funders. Auto‑migrates from JSON store on first SQLite run.
+  - Falls back to data/store.json when better‑sqlite3 is unavailable; transparent adapter.
+  - File: src/store_sqlite.ts (fallback: src/store.ts)
+
+- Decision pipeline + logging:
+  - Each create produces a “Launch decision snapshot” with all gate reasons, funder, timing, etc.
+  - Structured JSON logging to LOG_FILE.
+  - Files: src/index.ts, src/logger.ts
+
+- Auto‑buy scaffolding (guarded):
+  - Builds buy tx via Pump SDK (compute budget, slippage, priority fee), quotes tokens from BUY_SOL.
+  - Optional Jito bundle via Helius Sender: buy tx + tip tx; fallback to single send on failure.
+  - Files: src/autoBuy.ts, src/sender/helius.ts (JSON‑RPC wrapper), wired in src/index.ts
+
+- Wallet buy detection + tracker (existing components):
+  - startBuyDetection parses wallet buys; Tracker skeleton for exits exists (TP/SL/trailing).
+  - Files: src/detection.ts, src/tracker.ts, src/positions.ts
+
+- Configuration:
+  - Central config with extensive env toggles (detection, gates, funder scan, image, auto‑buy, sender/jito, fees, timings).
+  - Files: src/config.ts, .env
+
+3) Next Steps / Roadmap
+- Auto‑buy (finalize and enable):
+  - Provide a valid Jito tip account; test Sender bundle path end‑to‑end.
+  - Add cooldown/concurrency guard and quote‑drift guard (MAX_QUOTE_DRIFT_BPS) at send‑time.
+  - Define retry and fallback policy (bounded bundle retries → single RPC send) with time budgets.
+
+- Testing & Validation:
+  - Dry‑run mode: log would‑buy decisions without sending; compare hit rate.
+  - E2E tests on a dev wallet with tiny BUY_SOL; assert inclusion/confirm times.
+  - Unit tests for gates (social parsing, creator initial buy, funder detection).
+
+- Backtesting & Simulation:
+  - Use captured “decision snapshot” logs to run pretend snipes, compute PnL with historical prices or a bonding‑curve simulator.
+  - Parameter sweeps (BUY_SOL, slippage, thresholds) to tune acceptance criteria.
+
+- Fine‑tuning Buy Conditions:
+  - Keep image disabled; tighten Twitter gate if needed or add allowlist of trusted hosts.
+  - Consider extra sanity (name/symbol rules, blacklist words already supported via env).
+
+- Sell Condition Refactor:
+  - Unify tracker with new positions; enforce min hold; choose between fixed TP/SL and trailing; add partial exits if desired.
+
+- Observability & Ops:
+  - Add a compact decisions JSONL for offline analysis.
+  - Metrics counters (creates seen, accepted, buys sent, fills, rejections by reason).
+  - Log rotation for LOG_FILE; optional debug levels per module.
+
+- Reliability & Performance:
+  - Rate‑limit metadata fetches; cache repeated URIs.
+  - Multi‑RPC fallback, region selection for Sender/Jito.
+  - SQLite: standardize on Node LTS to use better‑sqlite3 and retire JSON fallback.
+
+4) Notes & Relevant Details
+- Running:
+  - Build: npm run build
+  - Short health run: RUN_FOR_SECONDS=10 node dist/index.js
+  - Enable auto‑buy by setting AUTO_BUY_ENABLED=true and JITO_TIP_ACCOUNT in .env
+
+- Data storage:
+  - SQLite at data/app.db (WAL mode creates -wal/-shm files). JSON fallback at data/store.json.
+  - creators: first‑time creator checks; known_creators: manual blacklist; creator_funders: visibility of (creator,funder) edges.
+
+- Env highlights (see .env):
+  - Gates: REQUIRE_TWITTER_HANDLE_MATCH, CREATOR_MAX_INITIAL_BUY_SOL, CREATOR_REQUIRE_FIRST_TIME, CREATOR_FUNDER_BLACKLIST_CHECK, FUNDER_SIG_LIMIT.
+  - Auto‑buy: AUTO_BUY_ENABLED, BUY_SOL, MAX_SLIPPAGE_BPS, PRIORITY_FEE_SOL, MIN_CREATE_MS, MAX_CREATE_AGE_MS, MAX_QUOTE_DRIFT_BPS.
+  - Sender/Jito: JITO_ENABLED, JITO_TIP_SOL, JITO_TIP_ACCOUNT, HELIUS_SENDER_URL (optional), SENDER_COMMITMENT, SENDER_WAIT_MS.
+
+- Security:
+  - Keep SOLANA_PRIVATE_KEY in .env only for local; do not commit secrets.
+  - Use minimal BUY_SOL while testing; double‑check gates before enabling buys in production.
+
+This document is a living summary. Keep it aligned with code in:
+- src/sources/onchainCreateDetector.ts
+- src/gates/social.ts, src/gates/onchain.ts
+- src/store_sqlite.ts, src/store.ts
+- src/autoBuy.ts, src/sender/helius.ts
+- src/index.ts, src/config.ts, .env
 
