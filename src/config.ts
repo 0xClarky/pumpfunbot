@@ -44,6 +44,12 @@ export type Config = {
   creatorFunderBlacklistCheck: boolean; // 1-hop funder check against known creators
   httpHeadTimeoutMs: number; // image HEAD timeout
   lineageTimeoutMs: number; // funder lookup timeout
+  funderSigLimit: number; // how many signatures to scan for funder
+  // Image probe settings
+  imageValidationMode: 'head' | 'probe';
+  imageProbeTimeoutMs: number;
+  imageProbeMaxBytes: number;
+  imageGateways: string[];
 };
 
 function parsePrivateKey(input?: string): Uint8Array {
@@ -119,6 +125,12 @@ export const config: Config = {
   creatorFunderBlacklistCheck: (process.env.CREATOR_FUNDER_BLACKLIST_CHECK || 'false').toLowerCase() === 'true',
   httpHeadTimeoutMs: Number(process.env.HTTP_HEAD_TIMEOUT_MS || 400),
   lineageTimeoutMs: Number(process.env.LINEAGE_TIMEOUT_MS || 800),
+  funderSigLimit: Number(process.env.FUNDER_SIG_LIMIT || 25),
+  imageValidationMode: ((process.env.IMAGE_MODE || 'probe') === 'head' ? 'head' : 'probe'),
+  imageProbeTimeoutMs: Number(process.env.IMAGE_PROBE_TIMEOUT_MS || 1000),
+  imageProbeMaxBytes: Number(process.env.IMAGE_PROBE_MAX_BYTES || 8192),
+  imageGateways: (process.env.IMAGE_GATEWAYS || 'ipfs.io,cloudflare-ipfs.com,metadata.pumplify.eu')
+    .split(',').map(s => s.trim()).filter(Boolean),
 };
 
 export function validateConfig(cfg: Config) {

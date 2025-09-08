@@ -54,31 +54,22 @@ function openDb(): any {
       creates INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS mints (
-      mint TEXT PRIMARY KEY,
-      creator TEXT NOT NULL,
-      sig TEXT NOT NULL,
-      name TEXT,
-      symbol TEXT,
-      uri TEXT,
-      ts INTEGER,
-      FOREIGN KEY (creator) REFERENCES creators(id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_mints_creator ON mints(creator);
     CREATE TABLE IF NOT EXISTS known_creators (
       id TEXT PRIMARY KEY,
       reason TEXT,
       created_at INTEGER NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS creator_links (
+    CREATE TABLE IF NOT EXISTS creator_funders (
       creator TEXT NOT NULL,
       funder TEXT NOT NULL,
       seen_sig TEXT,
       created_at INTEGER NOT NULL,
       PRIMARY KEY (creator, funder)
     );
-    CREATE INDEX IF NOT EXISTS idx_creator_links_funder ON creator_links(funder);
+    CREATE INDEX IF NOT EXISTS idx_creator_funders_funder ON creator_funders(funder);
   `);
+  // Drop legacy/unused tables if present
+  try { db.exec('DROP TABLE IF EXISTS mints; DROP TABLE IF EXISTS creator_links;'); } catch {}
   return db;
 }
 
@@ -89,8 +80,7 @@ class SqlStore {
     isKnown: null as any,
     hasCreator: null as any,
     upsertCreator: null as any,
-    addMint: null as any,
-    addLink: null as any,
+    addFunder: null as any,
   };
 
   constructor() {
@@ -115,19 +105,8 @@ class SqlStore {
          updated_at = excluded.updated_at,
          first_sig = CASE WHEN creators.first_sig IS NULL OR creators.first_sig = '' THEN excluded.first_sig ELSE creators.first_sig END`
     );
-    this.stmt.addMint = this.db.prepare(
-      `INSERT INTO mints(mint, creator, sig, name, symbol, uri, ts)
-       VALUES(@mint, @creator, @sig, @name, @symbol, @uri, @ts)
-       ON CONFLICT(mint) DO UPDATE SET
-         creator = excluded.creator,
-         sig = excluded.sig,
-         name = excluded.name,
-         symbol = excluded.symbol,
-         uri = excluded.uri,
-         ts = excluded.ts`
-    );
-    this.stmt.addLink = this.db.prepare(
-      `INSERT INTO creator_links(creator, funder, seen_sig, created_at)
+    this.stmt.addFunder = this.db.prepare(
+      `INSERT INTO creator_funders(creator, funder, seen_sig, created_at)
        VALUES(?, ?, ?, ?)
        ON CONFLICT(creator, funder) DO UPDATE SET
          seen_sig = excluded.seen_sig,
@@ -156,28 +135,17 @@ class SqlStore {
           const c = creators[id];
           this.stmt.upsertCreator!.run({ id, firstSig: c?.firstSig || '', updatedAt: c?.updatedAt || now });
         }
-        for (const mint of Object.keys(mints)) {
-          const m = mints[mint];
-          this.stmt.addMint!.run({
-            mint,
-            creator: m?.creator || '',
-            sig: m?.sig || '',
-            name: m?.name || '',
-            symbol: m?.symbol || '',
-            uri: m?.uri || '',
-            ts: m?.ts || now,
-          });
-        }
+        // Ignoring legacy mints; migrate creator_links -> creator_funders for clarity
         for (const creator of Object.keys(links)) {
           const mm = links[creator] || {};
           for (const funder of Object.keys(mm)) {
             const l = mm[funder];
-            this.stmt.addLink!.run(creator, funder, l?.seenSig || '', l?.createdAt || now);
+            this.stmt.addFunder!.run(creator, funder, l?.seenSig || '', l?.createdAt || now);
           }
         }
       });
       tx();
-      logger.info('Migrated JSON store to SQLite', { creators: Object.keys(creators).length, mints: Object.keys(mints).length });
+      logger.info('Migrated JSON store to SQLite', { creators: Object.keys(creators).length, funders: Object.keys(links).length });
     } catch (e) {
       logger.warn('JSON->SQLite migration skipped', { err: String(e) });
     }
@@ -205,22 +173,35 @@ class SqlStore {
     const now = Math.floor(Date.now() / 1000);
     this.stmt.upsertCreator!.run({ id, firstSig: sig, updatedAt: now });
   }
-  addMint(m: MintRecord) {
-    this.stmt.addMint!.run(m);
-  }
-  addCreatorLink(creator: string, funder: string, seenSig: string) {
+  addCreatorFunder(creator: string, funder: string, seenSig: string) {
     const now = Math.floor(Date.now() / 1000);
-    this.stmt.addLink!.run(creator, funder, seenSig, now);
+    this.stmt.addFunder!.run(creator, funder, seenSig, now);
   }
+}
+
+function makeJsonAdapter() {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const json = require('./store');
+  const s = json.store;
+  return {
+    seedKnownCreators: (ids: string[], reason?: string) => s.seedKnownCreators(ids, reason),
+    isKnownCreator: (id: string) => s.isKnownCreator(id),
+    hasCreator: (id: string) => s.hasCreator(id),
+    upsertCreatorOnCreate: (id: string, sig: string) => s.upsertCreatorOnCreate(id, sig),
+    addCreatorFunder: (creator: string, funder: string, seenSig: string) => s.addCreatorLink(creator, funder, seenSig),
+  };
 }
 
 let storeImpl: any;
 if (BetterSqlite3) {
-  storeImpl = new SqlStore();
+  try {
+    storeImpl = new SqlStore();
+  } catch (e) {
+    logger.warn('better-sqlite3 init failed; using JSON store fallback', { err: (e as any)?.message || String(e) });
+    storeImpl = makeJsonAdapter();
+  }
 } else {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const json = require('./store');
-  storeImpl = json.store;
+  storeImpl = makeJsonAdapter();
 }
 
 export const store = storeImpl as {
@@ -228,7 +209,6 @@ export const store = storeImpl as {
   isKnownCreator(id: string): boolean;
   hasCreator(id: string): boolean;
   upsertCreatorOnCreate(id: string, sig: string): void;
-  addMint(m: MintRecord): void;
-  addCreatorLink(creator: string, funder: string, seenSig: string): void;
+  addCreatorFunder(creator: string, funder: string, seenSig: string): void;
 };
 export default store;

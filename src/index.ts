@@ -166,6 +166,10 @@ async function main() {
             requireTwitterHandleMatch: config.requireTwitterHandleMatch,
             requireDescription: config.requireDescription,
             httpHeadTimeoutMs: config.httpHeadTimeoutMs,
+            imageValidationMode: config.imageValidationMode,
+            imageProbeTimeoutMs: config.imageProbeTimeoutMs,
+            imageProbeMaxBytes: config.imageProbeMaxBytes,
+            imageGateways: config.imageGateways,
           },
         );
 
@@ -179,14 +183,14 @@ async function main() {
         const firstTime = config.creatorRequireFirstTime ? !store.hasCreator(evt.creator) : true;
 
         const funderP = config.creatorFunderBlacklistCheck
-          ? findFunderOneHop(httpConfirmed, { creator: evt.creator, beforeSig: evt.signature, timeoutMs: config.lineageTimeoutMs })
+          ? findFunderOneHop(httpConfirmed, { creator: evt.creator, beforeSig: evt.signature, timeoutMs: config.lineageTimeoutMs, limit: config.funderSigLimit })
           : Promise.resolve(null);
 
         const [social, initialBuyLamports, funder] = await Promise.all([socialP, initialBuyP, funderP]);
         const initialBuySol = Number(initialBuyLamports) / 1_000_000_000;
         const funderKnown = !!funder && (store.isKnownCreator(funder) || store.hasCreator(funder));
         if (funder) {
-          try { store.addCreatorLink(evt.creator, funder, evt.signature); } catch {}
+          try { store.addCreatorFunder(evt.creator, funder, evt.signature); } catch {}
         }
 
         const hardFails: string[] = [];
@@ -211,18 +215,9 @@ async function main() {
           funderKnown,
           hardFails,
         });
-        // Persist mint + creator to local store after decision snapshot
+        // Persist creator to local store after decision snapshot
         try {
           store.upsertCreatorOnCreate(evt.creator, evt.signature);
-          store.addMint({
-            mint: evt.mint,
-            creator: evt.creator,
-            sig: evt.signature,
-            name: evt.name,
-            symbol: evt.symbol,
-            uri: evt.uri,
-            ts: evt.blockTime || Math.floor(Date.now() / 1000),
-          });
         } catch {}
         // Note: we are not buying yet; this logs the pass/fail signals.
       },
