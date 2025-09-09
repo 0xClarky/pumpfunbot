@@ -6,7 +6,7 @@ import { Positions } from './positions';
 import BN from 'bn.js';
 import { Tracker } from './tracker';
 import { PumpSdk, getBuySolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
-import { startOnchainCreateDetection } from './sources/onchainCreateDetector';
+import { startOnchainCreateDetection, NewLaunchEvent } from './sources/onchainCreateDetector';
 import { fetchJsonMetadata } from './sources/metadata';
 import { store } from './store_sqlite';
 import { checkSocial } from './gates/social';
@@ -73,38 +73,117 @@ async function main() {
   try { store.seedKnownCreators(config.blacklistCreators, 'env-blacklist'); } catch {}
 
   let detector: { stop: () => void } | null = null;
-  // --- Auto-buy queue (serialize buys to avoid rate limits) ---
-  const buyQueue: Array<{ mint: string; createdAtMs: number }> = [];
+  // --- Master queue: serialize enrich -> vet -> (optional) buy ---
+  const masterQueue: NewLaunchEvent[] = [];
   const queuedMints = new Set<string>();
-  let processingBuy = false;
+  let processing = false;
   let lastBuyAtMs = 0;
 
-  async function processBuyQueue() {
-    if (processingBuy) return;
-    if (buyQueue.length === 0) return;
-    processingBuy = true;
+  async function processQueue() {
+    if (processing) return;
+    if (masterQueue.length === 0) return;
+    processing = true;
     try {
-      const item = buyQueue.shift();
-      if (item) {
-        queuedMints.delete(item.mint);
-        const ageMs = Date.now() - item.createdAtMs;
-        if (ageMs > config.maxCreateAgeMs) {
-          logger.warn('Skipping stale buy candidate', { mint: item.mint, ageMs });
-        } else {
+      const evt = masterQueue.shift();
+      if (!evt) return;
+      queuedMints.delete(evt.mint);
+      const createdAtMs = evt.blockTime ? evt.blockTime * 1000 : Date.now();
+      const ageMs = Date.now() - createdAtMs;
+      if (ageMs > config.maxCreateAgeMs) {
+        logger.warn('Skipping stale candidate', { mint: evt.mint, ageMs });
+      } else {
+        // Enrich metadata
+        let metadata: any = null;
+        try { metadata = await fetchJsonMetadata(evt.uri, config.metadataTimeoutMs); } catch {}
+        const candidate = {
+          signature: evt.signature,
+          mint: evt.mint,
+          creator: evt.creator,
+          name: evt.name,
+          symbol: evt.symbol,
+          uri: evt.uri,
+          metadata: metadata
+            ? {
+                description: metadata.description,
+                image: metadata.image,
+                twitter: metadata.twitter,
+                telegram: metadata.telegram,
+                website: metadata.website,
+              }
+            : null,
+        };
+
+        // Social gate (fast)
+        const social = await checkSocial(
+          { name: evt.name, symbol: evt.symbol, image: candidate.metadata?.image, twitter: candidate.metadata?.twitter, description: candidate.metadata?.description },
+          { requireImage: config.requireImage, requireTwitterHandleMatch: config.requireTwitterHandleMatch, requireDescription: config.requireDescription, httpHeadTimeoutMs: config.httpHeadTimeoutMs, imageValidationMode: config.imageValidationMode, imageProbeTimeoutMs: config.imageProbeTimeoutMs, imageProbeMaxBytes: config.imageProbeMaxBytes, imageGateways: config.imageGateways },
+        );
+
+        // First-time creator (local)
+        const firstTime = config.creatorRequireFirstTime ? !store.hasCreator(evt.creator) : true;
+
+        // Early reject if obvious
+        const hardFails: string[] = [];
+        if (!social.pass) hardFails.push(...social.reasons.map(r=>`social:${r}`));
+        if (config.creatorRequireFirstTime && !firstTime) hardFails.push('creator:not-first-time');
+
+        // Creator initial buy (create tx only)
+        let initialBuySol = 0;
+        if (hardFails.length === 0) {
+          const lamports = await computeCreatorInitialBuyLamports(httpConfirmed, { signature: evt.signature, creator: evt.creator, mint: evt.mint });
+          initialBuySol = Number(lamports) / 1_000_000_000;
+          if (config.creatorMaxInitialBuySol > 0 && initialBuySol > config.creatorMaxInitialBuySol) hardFails.push('creator:initial-buy-too-large');
+        }
+
+        // Funder check (heaviest) only if still passing
+        let funder: string | null = null;
+        let funderKnown = false;
+        if (hardFails.length === 0 && config.creatorFunderBlacklistCheck) {
+          funder = await findFunderOneHop(httpConfirmed, { creator: evt.creator, beforeSig: evt.signature, timeoutMs: config.lineageTimeoutMs, limit: config.funderSigLimit });
+          funderKnown = !!funder && (store.hasCreator(funder) || store.isKnownCreator(funder));
+          if (funder) {
+            try { store.addCreatorFunder(evt.creator, funder, evt.signature); } catch {}
+          }
+          if (funderKnown) hardFails.push('creator:funder-known');
+        }
+
+        // Decision snapshot
+        logger.info('Launch decision snapshot', {
+          mint: evt.mint,
+          sig: evt.signature,
+          creator: evt.creator,
+          name: evt.name,
+          symbol: evt.symbol,
+          uri: evt.uri,
+          image: candidate.metadata?.image,
+          twitter: candidate.metadata?.twitter,
+          socialReasons: social.reasons,
+          initialBuySol: initialBuySol.toFixed(6),
+          firstTime,
+          funder,
+          funderKnown,
+          hardFails,
+        });
+
+        // Persist creator info
+        try { store.upsertCreatorOnCreate(evt.creator, evt.signature); } catch {}
+
+        // Optional auto-buy
+        if (config.autoBuyEnabled && hardFails.length === 0) {
           const gap = Date.now() - lastBuyAtMs;
           const waitMs = config.minBuyGapMs > gap ? (config.minBuyGapMs - gap) : 0;
           if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
           try {
-            await attemptAutoBuy({ connection: httpConfirmed, wallet: kp, mint: new PublicKey(item.mint), createdAtMs: item.createdAtMs });
+            await attemptAutoBuy({ connection: httpConfirmed, wallet: kp, mint: new PublicKey(evt.mint), createdAtMs });
           } catch (e) {
-            logger.warn('Auto-buy attempt (queued) failed', { mint: item.mint, err: String((e as any)?.message || e) });
+            logger.warn('Auto-buy attempt (master queue) failed', { mint: evt.mint, err: String((e as any)?.message || e) });
           }
           lastBuyAtMs = Date.now();
         }
       }
     } finally {
-      processingBuy = false;
-      if (buyQueue.length > 0) void processBuyQueue();
+      processing = false;
+      if (masterQueue.length > 0) void processQueue();
     }
   }
   if (config.detectionEnabled) {
@@ -165,112 +244,12 @@ async function main() {
           symbol: evt.symbol,
           sig: evt.signature,
         });
-        // Fetch metadata
-        let metadata: any = null;
-        try { metadata = await fetchJsonMetadata(evt.uri, config.metadataTimeoutMs); } catch {}
-
-        const candidate = {
-          signature: evt.signature,
-          mint: evt.mint,
-          creator: evt.creator,
-          name: evt.name,
-          symbol: evt.symbol,
-          uri: evt.uri,
-          metadata: metadata
-            ? {
-                description: metadata.description,
-                image: metadata.image,
-                twitter: metadata.twitter,
-                telegram: metadata.telegram,
-                website: metadata.website,
-              }
-            : null,
-        };
-
-        // Parallel gates
-        const socialP = checkSocial(
-          {
-            name: evt.name,
-            symbol: evt.symbol,
-            image: candidate.metadata?.image,
-            twitter: candidate.metadata?.twitter,
-            description: candidate.metadata?.description,
-          },
-          {
-            requireImage: config.requireImage,
-            requireTwitterHandleMatch: config.requireTwitterHandleMatch,
-            requireDescription: config.requireDescription,
-            httpHeadTimeoutMs: config.httpHeadTimeoutMs,
-            imageValidationMode: config.imageValidationMode,
-            imageProbeTimeoutMs: config.imageProbeTimeoutMs,
-            imageProbeMaxBytes: config.imageProbeMaxBytes,
-            imageGateways: config.imageGateways,
-          },
-        );
-
-        const initialBuyP = computeCreatorInitialBuyLamports(httpConfirmed, {
-          signature: evt.signature,
-          creator: evt.creator,
-          mint: evt.mint,
-        });
-
-        // Check first-time creator BEFORE persisting
-        const firstTime = config.creatorRequireFirstTime ? !store.hasCreator(evt.creator) : true;
-
-        const funderP = config.creatorFunderBlacklistCheck
-          ? findFunderOneHop(httpConfirmed, { creator: evt.creator, beforeSig: evt.signature, timeoutMs: config.lineageTimeoutMs, limit: config.funderSigLimit })
-          : Promise.resolve(null);
-
-        const [social, initialBuyLamports, funder] = await Promise.all([socialP, initialBuyP, funderP]);
-        const initialBuySol = Number(initialBuyLamports) / 1_000_000_000;
-        const funderKnown = !!funder && (store.isKnownCreator(funder) || store.hasCreator(funder));
-        if (funder) {
-          try { store.addCreatorFunder(evt.creator, funder, evt.signature); } catch {}
-        }
-
-        const hardFails: string[] = [];
-        if (!social.pass) hardFails.push(...social.reasons.map(r=>`social:${r}`));
-        if (config.creatorRequireFirstTime && !firstTime) hardFails.push('creator:not-first-time');
-        if (config.creatorMaxInitialBuySol > 0 && initialBuySol > config.creatorMaxInitialBuySol) hardFails.push('creator:initial-buy-too-large');
-        if (config.creatorFunderBlacklistCheck && funderKnown) hardFails.push('creator:funder-known');
-
-        logger.info('Launch decision snapshot', {
-          mint: evt.mint,
-          sig: evt.signature,
-          creator: evt.creator,
-          name: evt.name,
-          symbol: evt.symbol,
-          uri: evt.uri,
-          image: candidate.metadata?.image,
-          twitter: candidate.metadata?.twitter,
-          socialReasons: social.reasons,
-          initialBuySol: initialBuySol.toFixed(6),
-          firstTime,
-          funder,
-          funderKnown,
-          hardFails,
-        });
-        // Persist creator to local store after decision snapshot
-        try {
-          store.upsertCreatorOnCreate(evt.creator, evt.signature);
-        } catch {}
-        // Note: we are not buying yet; this logs the pass/fail signals.
-
-        // Auto-buy decision: enqueue and process via serialized queue
-        if (config.autoBuyEnabled) {
-          if (hardFails.length === 0) {
-            const createdAtMs = evt.blockTime ? evt.blockTime * 1000 : Date.now();
-            if (!queuedMints.has(evt.mint)) {
-              queuedMints.add(evt.mint);
-              buyQueue.push({ mint: evt.mint, createdAtMs });
-              logger.info('Launch accepted, queued for buy', { mint: evt.mint });
-              void processBuyQueue();
-            } else {
-              logger.debug('Mint already queued, skipping duplicate', { mint: evt.mint });
-            }
-          } else {
-            logger.debug('Auto-buy skipped due to hard fails', { mint: evt.mint, hardFails });
-          }
+        // Enqueue raw event for serialized processing
+        if (!queuedMints.has(evt.mint)) {
+          queuedMints.add(evt.mint);
+          masterQueue.push(evt);
+          logger.info('Candidate enqueued', { mint: evt.mint });
+          void processQueue();
         }
       },
       commitment: 'processed',
