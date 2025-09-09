@@ -15,44 +15,24 @@ export async function sendBundleJito(params: {
 }): Promise<JitoBundleResult> {
   const { blockEngineUrl, identity, txs, deadlineMs } = params;
   try {
-    // Dynamic require to avoid type/compile issues if package not present
+    // Load concrete exports from dist paths
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const jito: any = require('jito-ts');
-    // Try common export paths
-    const SearcherClient = jito.SearcherClient || jito.default?.SearcherClient || jito.searcher?.SearcherClient || jito;
-    const Bundle = jito.Bundle || jito.default?.Bundle || jito.searcher?.Bundle;
+    const { searcherClient } = require('jito-ts/dist/sdk/block-engine/searcher');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Bundle } = require('jito-ts/dist/sdk/block-engine/types');
 
-    if (!SearcherClient || !Bundle) {
-      throw new Error('jito-ts exports not found');
-    }
+    if (!searcherClient || !Bundle) throw new Error('jito-ts exports not found');
 
-    // Some versions expose static connect(), others via constructor; try both
-    let client: any;
-    if (typeof SearcherClient.connect === 'function') {
-      client = await SearcherClient.connect(blockEngineUrl, identity);
+    const client = searcherClient(blockEngineUrl, identity);
+    const bundle = new Bundle(txs);
+    // The SDK's sendBundle returns { ok: boolean, value?: string, error?: Error }
+    const res = await client.sendBundle(bundle);
+    if (res?.ok) {
+      return { ok: true, bundleId: res.value as string };
     } else {
-      client = new SearcherClient(blockEngineUrl, identity);
+      const reason = res?.error?.message || String(res?.error || 'unknown');
+      return { ok: false, reason };
     }
-
-    const serialized = txs.map((tx) => tx.serialize());
-    const bundle = new Bundle(serialized);
-
-    // Send and optionally wait; different SDK versions expose different APIs
-    if (typeof client.sendBundle === 'function') {
-      const res = await client.sendBundle(bundle, { deadlineMs });
-      const bundleId = res?.bundleId || res?.id || undefined;
-      const ok = Boolean(bundleId);
-      return { ok, bundleId, reason: ok ? undefined : 'no-bundle-id' };
-    }
-    if (typeof client.sendBundleAndAwait === 'function') {
-      const res = await client.sendBundleAndAwait(bundle, { deadlineMs });
-      const status = res?.status || res?.result || 'unknown';
-      const ok = String(status).toLowerCase().includes('accepted');
-      const bundleId = res?.bundleId || undefined;
-      return { ok, bundleId, reason: ok ? undefined : String(status) };
-    }
-
-    throw new Error('Unsupported jito-ts client send method');
   } catch (e) {
     logger.warn('Jito bundle send failed', { err: String((e as any)?.message || e) });
     return { ok: false, reason: String((e as any)?.message || e) };
