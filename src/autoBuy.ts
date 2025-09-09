@@ -15,6 +15,34 @@ export type AutoBuyParams = {
 
 function nowMs() { return Date.now(); }
 
+async function waitSignatureWS(
+  connection: Connection,
+  sig: string,
+  commit: 'processed' | 'confirmed',
+  timeoutMs: number,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let timer: any;
+    try {
+      const subId = connection.onSignature(
+        sig,
+        (res: any) => {
+          clearTimeout(timer);
+          if (res?.err) reject(new Error(`tx-error:${JSON.stringify(res.err)}`));
+          else resolve();
+        },
+        commit,
+      );
+      timer = setTimeout(() => {
+        connection.removeSignatureListener(subId).catch(() => {});
+        reject(new Error('ws-timeout'));
+      }, timeoutMs);
+    } catch (e) {
+      reject(e as any);
+    }
+  });
+}
+
 export async function attemptAutoBuy({ connection, wallet, mint, createdAtMs }: AutoBuyParams): Promise<void> {
   if (!config.autoBuyEnabled) return;
   const age = nowMs() - createdAtMs;
@@ -42,7 +70,9 @@ export async function attemptAutoBuy({ connection, wallet, mint, createdAtMs }: 
   }
 
   // Build buy instructions
-  const slippage = Math.max(0, Math.min(1000, config.maxSlippageBps)) / 1000; // pump sdk expects fraction 0.. ?
+  // Pump SDK expects a numeric 'slippage' such that: added = amount * floor(slippage*10) / 1000
+  // To represent BPS correctly, use slippage = (bps / 100): e.g., 1000 bps => 10 (10%)
+  const slippage = Math.max(0, Math.min(5000, config.maxSlippageBps)) / 100;
   const buyIxs = await sdk.buyInstructions({
     global,
     bondingCurveAccountInfo,
@@ -122,10 +152,31 @@ export async function attemptAutoBuy({ connection, wallet, mint, createdAtMs }: 
     }
   }
 
-  // Fallback: send via RPC
+  // Fallback: send via RPC (single attempt, WS confirm; no retries)
   try {
-    const sig = await connection.sendRawTransaction(buyTx.serialize(), { skipPreflight: true, preflightCommitment: config.senderCommitment as any });
+    const latest = await connection.getLatestBlockhash('processed');
+    // Rebuild with fresh blockhash
+    const fallbackMsg = new TransactionMessage({
+      payerKey: user,
+      recentBlockhash: latest.blockhash,
+      instructions: [...cuIxs, ...buyIxs],
+    }).compileToV0Message();
+    const fallbackTx = new VersionedTransaction(fallbackMsg);
+    fallbackTx.sign([wallet]);
+    const sig = await connection.sendRawTransaction(fallbackTx.serialize(), {
+      skipPreflight: config.skipPreflight,
+      preflightCommitment: config.senderCommitment as any,
+      maxRetries: 0,
+    } as any);
     logger.info('Buy submitted via RPC', { mint: mint.toBase58(), sig });
+    // WS confirm once (avoids HTTP polling/429)
+    const wsWait = Math.max(1500, (config as any).senderWaitMs || 4000);
+    try {
+      await waitSignatureWS(connection, sig, 'confirmed', wsWait);
+      logger.info('Buy confirmed (ws)', { sig });
+    } catch (eConf) {
+      logger.warn('Buy ws confirmation failed', { sig, err: String((eConf as any)?.message || eConf) });
+    }
   } catch (e2) {
     logger.error('Buy submission failed (RPC fallback)', { err: String((e2 as any)?.message || e2) });
   }
