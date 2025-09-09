@@ -61,6 +61,8 @@ export type Config = {
   jitoTipSol: number;
   jitoTipAccount?: string | undefined;
   jitoTipAccounts: string[]; // optional list; pick randomly if provided
+  jitoBlockEngine: string; // e.g., ny.block-engine.jito.wtf:443
+  jitoDeadlineMs: number; // bundle wait deadline
   heliusSenderUrl?: string | undefined; // if not set, fall back to heliusRpcUrl
   senderCommitment: 'processed' | 'confirmed';
   senderWaitMs: number;
@@ -157,6 +159,8 @@ export const config: Config = {
     .split(',')
     .map(s => s.trim())
     .filter(Boolean),
+  jitoBlockEngine: process.env.JITO_BLOCK_ENGINE || 'ny.block-engine.jito.wtf:443',
+  jitoDeadlineMs: Number(process.env.JITO_DEADLINE_MS || 2000),
   heliusSenderUrl: process.env.HELIUS_SENDER_URL || undefined,
   senderCommitment: ((process.env.SENDER_COMMITMENT || 'processed') as any),
   senderWaitMs: Number(process.env.SENDER_WAIT_MS || 4000),

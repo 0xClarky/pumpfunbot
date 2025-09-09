@@ -3,7 +3,7 @@ import BN from 'bn.js';
 import { PumpSdk, getBuyTokenAmountFromSolAmount } from '@pump-fun/pump-sdk';
 import { logger } from './logger';
 import { config } from './config';
-import { sendTransactions, sendTransaction } from './sender/helius';
+import { sendBundleJito } from './sender/jito';
 
 export type AutoBuyParams = {
   connection: Connection;
@@ -98,33 +98,24 @@ export async function attemptAutoBuy({ connection, wallet, mint, createdAtMs }: 
       const tipTx = new VersionedTransaction(tipMsg);
       tipTx.sign([wallet]);
       const tipB64 = Buffer.from(tipTx.serialize()).toString('base64');
-      const senderUrl = (config.heliusSenderUrl && config.heliusSenderUrl.includes('/v0/transactions'))
-        ? (config.heliusSenderUrl as string)
-        : `https://api.helius.xyz/v0/transactions?api-key=${encodeURIComponent(config.heliusApiKey || '')}`;
       try {
-        const res = await sendTransactions(senderUrl, [buyB64, tipB64], { preflightCommitment: config.senderCommitment, skipPreflight: true });
-        logger.info('Bundle submitted', { mint: mint.toBase58(), result: res });
-        return;
+        const res = await sendBundleJito({ blockEngineUrl: (config as any).jitoBlockEngine, identity: wallet, txs: [buyTx, tipTx], deadlineMs: (config as any).jitoDeadlineMs });
+        if (res.ok) {
+          logger.info('Jito bundle submitted', { mint: mint.toBase58(), bundleId: res.bundleId });
+          return;
+        }
+        logger.warn('Jito bundle not accepted', { mint: mint.toBase58(), reason: res.reason });
       } catch (e) {
-        logger.warn('Bundle submission failed, falling back to single send', { err: String((e as any)?.message || e) });
+        logger.warn('Jito bundle submission error', { err: String((e as any)?.message || e) });
       }
     }
   }
 
-  // Fallback: send single tx
+  // Fallback: send via RPC
   try {
-    const senderUrl = (config.heliusSenderUrl && config.heliusSenderUrl.includes('/v0/transactions'))
-      ? (config.heliusSenderUrl as string)
-      : `https://api.helius.xyz/v0/transactions?api-key=${encodeURIComponent(config.heliusApiKey || '')}`;
-    const res = await sendTransaction(senderUrl, buyB64, { preflightCommitment: config.senderCommitment, skipPreflight: true });
-    logger.info('Buy submitted (single)', { mint: mint.toBase58(), result: res });
-  } catch (e) {
-    logger.warn('Buy submission via Sender failed; attempting RPC direct send', { err: String((e as any)?.message || e) });
-    try {
-      const sig = await connection.sendRawTransaction(buyTx.serialize(), { skipPreflight: true, preflightCommitment: config.senderCommitment as any });
-      logger.info('Buy submitted via RPC', { mint: mint.toBase58(), sig });
-    } catch (e2) {
-      logger.error('Buy submission failed (RPC fallback)', { err: String((e2 as any)?.message || e2) });
-    }
+    const sig = await connection.sendRawTransaction(buyTx.serialize(), { skipPreflight: true, preflightCommitment: config.senderCommitment as any });
+    logger.info('Buy submitted via RPC', { mint: mint.toBase58(), sig });
+  } catch (e2) {
+    logger.error('Buy submission failed (RPC fallback)', { err: String((e2 as any)?.message || e2) });
   }
 }
