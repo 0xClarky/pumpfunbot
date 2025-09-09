@@ -4,6 +4,7 @@ import { PumpSdk, getBuyTokenAmountFromSolAmount } from '@pump-fun/pump-sdk';
 import { logger } from './logger';
 import { config } from './config';
 import { sendBundleJito } from './sender/jito';
+import { sendBundleJsonRpc } from './sender/jito_jsonrpc';
 
 export type AutoBuyParams = {
   connection: Connection;
@@ -99,12 +100,22 @@ export async function attemptAutoBuy({ connection, wallet, mint, createdAtMs }: 
       tipTx.sign([wallet]);
       const tipB64 = Buffer.from(tipTx.serialize()).toString('base64');
       try {
-        const res = await sendBundleJito({ blockEngineUrl: (config as any).jitoBlockEngine, identity: wallet, txs: [buyTx, tipTx], deadlineMs: (config as any).jitoDeadlineMs });
-        if (res.ok) {
-          logger.info('Jito bundle submitted', { mint: mint.toBase58(), bundleId: res.bundleId });
-          return;
+        // Prefer JSON-RPC if configured (no auth requirement at default limits)
+        if ((config as any).jitoJsonRpcUrl) {
+          const res = await sendBundleJsonRpc({ endpoint: (config as any).jitoJsonRpcUrl!, txsBase64: [buyB64, tipB64], uuid: (config as any).jitoUuid, timeoutMs: (config as any).jitoDeadlineMs });
+          if (res.ok) {
+            logger.info('Jito JSON-RPC bundle submitted', { mint: mint.toBase58(), result: res.result });
+            return;
+          }
+          logger.warn('Jito JSON-RPC bundle failed', { mint: mint.toBase58(), err: res.error });
+        } else {
+          const res = await sendBundleJito({ blockEngineUrl: (config as any).jitoBlockEngine, identity: wallet, txs: [buyTx, tipTx], deadlineMs: (config as any).jitoDeadlineMs });
+          if (res.ok) {
+            logger.info('Jito gRPC bundle submitted', { mint: mint.toBase58(), bundleId: res.bundleId });
+            return;
+          }
+          logger.warn('Jito gRPC bundle not accepted', { mint: mint.toBase58(), reason: res.reason });
         }
-        logger.warn('Jito bundle not accepted', { mint: mint.toBase58(), reason: res.reason });
       } catch (e) {
         logger.warn('Jito bundle submission error', { err: String((e as any)?.message || e) });
       }
