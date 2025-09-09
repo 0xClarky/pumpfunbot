@@ -85,11 +85,18 @@ export async function attemptAutoBuy({ connection, wallet, mint, createdAtMs }: 
     slippage,
   } as any);
 
-  // Compute budget adjustments
+  // Compute budget adjustments (align with sell logic): ~300k CU and microLamports per CU
+  function priorityFeeMicrosPerCU(): number {
+    const lamports = Math.floor(config.priorityFeeSol * 1e9);
+    const units = 200_000; // approximate units budget
+    const lamportsPerCU = lamports / units;
+    return Math.max(0, Math.floor(lamportsPerCU * 1e6)); // lamports -> microLamports
+  }
+  const microLamports = priorityFeeMicrosPerCU();
   const cuIxs = [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }),
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.floor(config.priorityFeeSol * 1_000_000_000) }),
-  ];
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }),
+    microLamports > 0 ? ComputeBudgetProgram.setComputeUnitPrice({ microLamports }) : null,
+  ].filter(Boolean) as any[];
 
   const recent = await connection.getLatestBlockhash('processed');
   const messageV0 = new TransactionMessage({
@@ -169,14 +176,21 @@ export async function attemptAutoBuy({ connection, wallet, mint, createdAtMs }: 
       maxRetries: 0,
     } as any);
     logger.info('Buy submitted via RPC', { mint: mint.toBase58(), sig });
-    // WS confirm once (avoids HTTP polling/429)
-    const wsWait = Math.max(1500, (config as any).senderWaitMs || 4000);
+    // WS processed (fast) then background confirmed — do not block queue
+    const fastWait = Math.max(1500, (config as any).senderWaitMs || 4000);
     try {
-      await waitSignatureWS(connection, sig, 'confirmed', wsWait);
-      logger.info('Buy confirmed (ws)', { sig });
-    } catch (eConf) {
-      logger.warn('Buy ws confirmation failed', { sig, err: String((eConf as any)?.message || eConf) });
+      await waitSignatureWS(connection, sig, 'processed', fastWait);
+      logger.info('Buy observed (ws:processed)', { sig });
+    } catch (eProc) {
+      logger.warn('Buy ws processed timed out', { sig, err: String((eProc as any)?.message || eProc) });
     }
+    // Background confirm (non-blocking)
+    void (async () => {
+      try {
+        await waitSignatureWS(connection, sig, 'confirmed', 12000);
+        logger.info('Buy confirmed (ws)', { sig });
+      } catch {}
+    })();
   } catch (e2) {
     logger.error('Buy submission failed (RPC fallback)', { err: String((e2 as any)?.message || e2) });
   }

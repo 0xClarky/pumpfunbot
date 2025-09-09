@@ -38,6 +38,7 @@ export type Config = {
   // Sniper gating
   requireImage: boolean;
   requireTwitterHandleMatch: boolean;
+  requireTwitterPresent: boolean;
   requireDescription: boolean;
   creatorMaxInitialBuySol: number; // reject if creator initial buy > this (SOL)
   creatorRequireFirstTime: boolean; // reject if creator exists in local DB
@@ -68,6 +69,19 @@ export type Config = {
   heliusSenderUrl?: string | undefined; // if not set, fall back to heliusRpcUrl
   senderCommitment: 'processed' | 'confirmed';
   senderWaitMs: number;
+  // Simulation / paper-trading
+  simulationEnabled: boolean;
+  // Simulation safety exits
+  simHardSlEnabled: boolean; // enable fixed SL fallback even in trailing
+  simTtlMs: number; // time-based exit; 0 disables
+  simFlatSecs: number; // flat window seconds; 0 disables
+  simFlatBps: number; // bps change considered "flat"; 0 disables
+  simNoFlowSol: number; // close if 15s net inflow <= threshold (SOL); 0 disables
+  simBaseTxLamports: number; // approximate base tx fee per leg (lamports)
+  // Launch metrics
+  launchMetricsEnabled: boolean;
+  volumeWindowSeconds: number; // e.g., 15
+  volumeMode: 'net' | 'scan';
 };
 
 function parsePrivateKey(input?: string): Uint8Array {
@@ -136,6 +150,7 @@ export const config: Config = {
   // Sniper gating defaults (conservative)
   requireImage: (process.env.REQUIRE_IMAGE || 'true').toLowerCase() === 'true',
   requireTwitterHandleMatch: (process.env.REQUIRE_TWITTER_HANDLE_MATCH || 'true').toLowerCase() === 'true',
+  requireTwitterPresent: (process.env.REQUIRE_TWITTER || 'true').toLowerCase() === 'true',
   requireDescription: (process.env.REQUIRE_DESC || 'false').toLowerCase() === 'true',
   creatorMaxInitialBuySol: Number(process.env.CREATOR_MAX_INITIAL_BUY_SOL || 2),
   creatorRequireFirstTime: (process.env.CREATOR_REQUIRE_FIRST_TIME || 'true').toLowerCase() === 'true',
@@ -168,6 +183,16 @@ export const config: Config = {
   heliusSenderUrl: process.env.HELIUS_SENDER_URL || undefined,
   senderCommitment: ((process.env.SENDER_COMMITMENT || 'processed') as any),
   senderWaitMs: Number(process.env.SENDER_WAIT_MS || 4000),
+  simulationEnabled: ((process.env.SIMULATION_ENABLED || process.env.PAPER_TRADE || 'false').toLowerCase() === 'true'),
+  simHardSlEnabled: (process.env.SIM_HARD_SL_ENABLED || 'true').toLowerCase() === 'true',
+  simTtlMs: Number(process.env.SIM_TTL_MS || 0),
+  simFlatSecs: Number(process.env.SIM_FLAT_SECS || 0),
+  simFlatBps: Number(process.env.SIM_FLAT_BPS || 0),
+  simNoFlowSol: Number(process.env.SIM_NOFLOW_SOL || 0),
+  simBaseTxLamports: Number(process.env.SIM_BASE_TX_LAMPORTS || 5000),
+  launchMetricsEnabled: (process.env.LAUNCH_METRICS_ENABLED || 'true').toLowerCase() === 'true',
+  volumeWindowSeconds: Number(process.env.VOLUME_WINDOW_SECONDS || 15),
+  volumeMode: ((process.env.VOLUME_MODE || 'net') === 'scan' ? 'scan' : 'net'),
 };
 
 export function validateConfig(cfg: Config) {

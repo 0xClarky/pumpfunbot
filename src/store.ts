@@ -92,6 +92,10 @@ export class Store {
   hasCreator(id: string): boolean {
     return Boolean(this.data.creators[id]);
   }
+  getCreatorCreates(id: string): number {
+    const rec = this.data.creators[id];
+    return rec ? Number(rec.creates || 0) : 0;
+  }
   upsertCreatorOnCreate(id: string, sig: string) {
     const now = Math.floor(Date.now() / 1000);
     const rec = this.data.creators[id];

@@ -153,7 +153,7 @@ Pump.fun Sniper Bot — Project Overview
 - Auto‑buy scaffolding (guarded):
   - Builds buy tx via Pump SDK (compute budget, slippage, priority fee), quotes tokens from BUY_SOL.
   - Optional Jito bundle via Helius Sender: buy tx + tip tx; fallback to single send on failure.
-  - Files: src/autoBuy.ts, src/sender/helius.ts (JSON‑RPC wrapper), wired in src/index.ts
+  - Files: src/autoBuy.ts, src/sender/jito_jsonrpc.ts (REST bundles), src/sender/jito.ts (gRPC optional), wired in src/index.ts
 
 - Wallet buy detection + tracker (existing components):
   - startBuyDetection parses wallet buys; Tracker skeleton for exits exists (TP/SL/trailing).
@@ -218,6 +218,12 @@ This document is a living summary. Keep it aligned with code in:
 - src/sources/onchainCreateDetector.ts
 - src/gates/social.ts, src/gates/onchain.ts
 - src/store_sqlite.ts, src/store.ts
-- src/autoBuy.ts, src/sender/helius.ts
+- src/autoBuy.ts, src/sender/jito_jsonrpc.ts, src/sender/jito.ts
 - src/index.ts, src/config.ts, .env
 
+
+Possible buy conditions
+1. for ones that have a volume spike within the first 2 seconds of launch 
+2. for ones that dump and then re-pump again. entry after the initial dump. 
+3. fixed tp over trailing because of insta dump risk where trailing cant cover quickly enough
+4. 

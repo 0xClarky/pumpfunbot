@@ -4,6 +4,7 @@ import BN from 'bn.js';
 import { logger } from './logger';
 import { Positions, Position } from './positions';
 import { PumpSdk, bondingCurveMarketCap, getSellSolAmountFromTokenAmount, getBuySolAmountFromTokenAmount } from '@pump-fun/pump-sdk';
+import { store } from './store_sqlite';
 
 type TrackerConfig = {
   tpPct: number; // e.g., 0.35 for +35%
@@ -15,6 +16,12 @@ type TrackerConfig = {
   minHoldMs: number;
   trailingSlBps: number;
   sellStrategy: 'fixed' | 'trailing';
+  simulationMode?: boolean;
+  simHardSlEnabled?: boolean;
+  simTtlMs?: number;
+  simFlatSecs?: number;
+  simFlatBps?: number;
+  simBaseTxLamports?: number;
 };
 
 export class Tracker {
@@ -23,6 +30,8 @@ export class Tracker {
   private globalCache: any | null = null;
   private feeCfgCache: any | null = null;
   private selling = new Set<string>();
+  private lastSolOut = new Map<string, BN>();
+  private lastChangeAt = new Map<string, number>();
 
   constructor(
     private connection: Connection,
@@ -87,40 +96,52 @@ export class Tracker {
         msg.includes('TokenAccountNotFoundError') ||
         msg.includes('could not find account');
       if (manualClose) {
+        // In simulation mode, record a simulated close to capture instant-death cases
+        if (this.cfg.simulationMode && !this.cfg.sellEnabled) {
+          try {
+            store.simTradeClose({
+              mint: pos.mint.toBase58(),
+              closedAt: Math.floor(Date.now() / 1000),
+              closeReason: 'HALT',
+              proceedsLamports: '0',
+              pnlLamports: pos.costLamports.neg().toString(),
+              pnlPct: -1, // -100%
+            });
+            logger.info('Sim position closed (manual/halt)', { mint: pos.mint.toBase58(), reason: 'HALT' });
+          } catch {}
+          this.positions.close(pos.mint);
+          return;
+        }
         logger.info('Position closed manually, removing from tracker', { mint: pos.mint.toBase58() });
         this.positions.close(pos.mint);
         return;
       }
       throw e;
     }
-    // If ATA missing or zero balance, treat as manually closed
-    try {
-      if (!associatedUserAccountInfo) {
-        logger.info('Position ATA missing; removing from tracker', { mint: pos.mint.toBase58() });
-        this.positions.close(pos.mint);
-        return;
+    // If ATA missing or zero balance, treat as manually closed (skip in simulation mode)
+    if (!this.cfg.simulationMode) {
+      try {
+        if (!associatedUserAccountInfo) {
+          logger.info('Position ATA missing; removing from tracker', { mint: pos.mint.toBase58() });
+          this.positions.close(pos.mint);
+          return;
+        }
+        const data = associatedUserAccountInfo.data as Buffer;
+        const decoded: any = AccountLayout.decode(Buffer.from(data));
+        // decoded.amount is a Buffer-like u64; convert to string then BigInt
+        const amt = BigInt(decoded.amount.toString());
+        if (amt === 0n) {
+          logger.info('Position balance zero; removing from tracker', { mint: pos.mint.toBase58() });
+          this.positions.close(pos.mint);
+          return;
+        }
+      } catch {
+        // If decode fails, proceed — sell/trailing logic will still function
       }
-      const data = associatedUserAccountInfo.data as Buffer;
-      const decoded: any = AccountLayout.decode(Buffer.from(data));
-      // decoded.amount is a Buffer-like u64; convert to string then BigInt
-      const amt = BigInt(decoded.amount.toString());
-      if (amt === 0n) {
-        logger.info('Position balance zero; removing from tracker', { mint: pos.mint.toBase58() });
-        this.positions.close(pos.mint);
-        return;
-      }
-    } catch {
-      // If decode fails, proceed — sell/trailing logic will still function
-    }
-    if (bondingCurve.complete) {
-      // Migration/complete state — halt this position per SOW
-      logger.warn('Position halted due to migration/complete', { mint: pos.mint.toBase58() });
-      this.positions.close(pos.mint);
-      return;
     }
     const mintSupply = bondingCurve.tokenTotalSupply; // BN
 
-    // SOL out if sell all now (after fees)
+    // SOL out if sell all now (gross, before netting fees)
     const solOut = getSellSolAmountFromTokenAmount({
       global: this.globalCache!,
       feeConfig: this.feeCfgCache!,
@@ -128,6 +149,40 @@ export class Tracker {
       bondingCurve,
       amount: pos.tokens,
     });
+
+    // Helper to apply fee model to proceeds (simulation)
+    const netOutWithFees = (gross: BN) => {
+      const prio = Math.floor((this.cfg.priorityFeeSol || 0) * 1e9);
+      const base = this.cfg.simBaseTxLamports || 0;
+      const net = gross.sub(new BN(prio)).sub(new BN(base));
+      return net.isNeg() ? new BN(0) : net; // clamp to >= 0 to avoid <-100% PnL
+    };
+
+    // If curve is complete/migrated, close immediately in simulation mode to record outcome
+    if (bondingCurve.complete) {
+      if (this.cfg.simulationMode && !this.cfg.sellEnabled) {
+        const netOut = netOutWithFees(solOut);
+        const pnlLamports = netOut.sub(pos.costLamports);
+        const pnlPct = pos.costLamports.isZero() ? 0 : pnlLamports.muln(10000).div(pos.costLamports).toNumber() / 10000;
+        try {
+          store.simTradeClose({
+            mint: pos.mint.toBase58(),
+            closedAt: Math.floor(Date.now() / 1000),
+            closeReason: 'HALT',
+            proceedsLamports: netOut.toString(),
+            pnlLamports: pnlLamports.toString(),
+            pnlPct,
+          });
+        } catch {}
+        this.positions.close(pos.mint);
+        logger.warn('Sim position closed due to migration/complete', { mint: pos.mint.toBase58(), pnlPct: pnlPct.toFixed(4) });
+        return;
+      }
+      // Live path: just drop tracking
+      logger.warn('Position halted due to migration/complete', { mint: pos.mint.toBase58() });
+      this.positions.close(pos.mint);
+      return;
+    }
 
     const mcap = bondingCurveMarketCap({
       mintSupply,
@@ -159,6 +214,31 @@ export class Tracker {
       mcapSol: mcapSolStr,
     });
 
+    // netOutWithFees defined earlier in this method
+
+    // Time-to-live exit (simulation only)
+    if (this.cfg.simulationMode && !this.cfg.sellEnabled && (this.cfg.simTtlMs || 0) > 0) {
+      const ttlMs = this.cfg.simTtlMs || 0;
+      if (Date.now() >= (pos.openedAt * 1000 + ttlMs)) {
+        const netOut = netOutWithFees(solOut);
+        const pnlLamports = netOut.sub(pos.costLamports);
+        const ttlPnlPct = pos.costLamports.isZero() ? 0 : pnlLamports.muln(10000).div(pos.costLamports).toNumber() / 10000;
+        try {
+          store.simTradeClose({
+            mint: pos.mint.toBase58(),
+            closedAt: Math.floor(Date.now() / 1000),
+            closeReason: 'TTL',
+            proceedsLamports: netOut.toString(),
+            pnlLamports: pnlLamports.toString(),
+            pnlPct: ttlPnlPct,
+          });
+        } catch {}
+        this.positions.close(pos.mint);
+        logger.info('Sim position closed (TTL)', { mint: pos.mint.toBase58(), ttlMs });
+        return;
+      }
+    }
+
     if (this.cfg.sellStrategy === 'trailing') {
       // Trailing stop logic
       if (!pos.peakSolOut || solOut.gt(pos.peakSolOut)) {
@@ -179,6 +259,24 @@ export class Tracker {
         const key = pos.mint.toBase58();
         if (solOut.lte(trigger)) {
           if (!this.cfg.sellEnabled) {
+            if (this.cfg.simulationMode) {
+              const netOut = netOutWithFees(solOut);
+              const pnlLamports = netOut.sub(pos.costLamports);
+              const pnlPctSim = pos.costLamports.isZero() ? 0 : pnlLamports.muln(10000).div(pos.costLamports).toNumber() / 10000;
+              try {
+                store.simTradeClose({
+                  mint: pos.mint.toBase58(),
+                  closedAt: Math.floor(Date.now() / 1000),
+                  closeReason: 'TSL',
+                  proceedsLamports: netOut.toString(),
+                  pnlLamports: pnlLamports.toString(),
+                  pnlPct: pnlPctSim,
+                });
+              } catch {}
+              this.positions.close(pos.mint);
+              logger.info('Sim position closed', { mint: key, reason: 'TSL', proceeds: solOut.toString(), pnlPct: pnlPctSim.toFixed(4) });
+              return;
+            }
             logger.info('Sell condition met (dry-run)', { mint: key, reason: 'TSL', trailingSlBps: this.cfg.trailingSlBps });
             return;
           }
@@ -192,6 +290,26 @@ export class Tracker {
           }
         }
       }
+      // Simulation hard SL fallback (handles instant dumps that never arm trailing)
+      if (this.cfg.simulationMode && !this.cfg.sellEnabled && (this.cfg.simHardSlEnabled ?? true)) {
+        if (pnlPct <= this.cfg.slPct) {
+          const netOut = netOutWithFees(solOut);
+          const pnlLamports = netOut.sub(pos.costLamports);
+          try {
+            store.simTradeClose({
+              mint: pos.mint.toBase58(),
+              closedAt: Math.floor(Date.now() / 1000),
+              closeReason: 'SL',
+              proceedsLamports: netOut.toString(),
+              pnlLamports: pnlLamports.toString(),
+              pnlPct,
+            });
+          } catch {}
+          this.positions.close(pos.mint);
+          logger.info('Sim position closed (hard SL fallback)', { mint: pos.mint.toBase58(), pnlPct: pnlPct.toFixed(4) });
+          return;
+        }
+      }
       return;
     }
 
@@ -200,6 +318,23 @@ export class Tracker {
       const key = pos.mint.toBase58();
       if (!this.cfg.sellEnabled) {
         const reason = pnlPct >= this.cfg.tpPct ? 'TP' : 'SL';
+        if (this.cfg.simulationMode) {
+          const netOut = netOutWithFees(solOut);
+          const pnlLamports = netOut.sub(pos.costLamports);
+          try {
+            store.simTradeClose({
+              mint: pos.mint.toBase58(),
+              closedAt: Math.floor(Date.now() / 1000),
+              closeReason: reason,
+              proceedsLamports: netOut.toString(),
+              pnlLamports: pnlLamports.toString(),
+              pnlPct,
+            });
+          } catch {}
+          this.positions.close(pos.mint);
+          logger.info('Sim position closed', { mint: key, reason, proceeds: solOut.toString(), pnlPct: pnlPct.toFixed(4) });
+          return;
+        }
         logger.info('Sell condition met (dry-run)', { mint: key, reason, pnlPct: pnlPct.toFixed(4) });
         return;
       }
@@ -211,6 +346,51 @@ export class Tracker {
         await this.sellAll({ pos, bondingCurveAccountInfo, bondingCurve, expectedSol: solOut });
       } finally {
         this.selling.delete(key);
+      }
+    }
+
+    // Flat exit tracking (simulation only)
+    if (this.cfg.simulationMode && !this.cfg.sellEnabled && (this.cfg.simFlatSecs || 0) > 0 && (this.cfg.simFlatBps || 0) > 0) {
+      const key = pos.mint.toBase58();
+      const last = this.lastSolOut.get(key);
+      const nowVal = solOut;
+      const bps = this.cfg.simFlatBps || 0;
+      const winMs = (this.cfg.simFlatSecs || 0) * 1000;
+      if (!last || last.isZero()) {
+        this.lastSolOut.set(key, nowVal);
+        this.lastChangeAt.set(key, Date.now());
+      } else {
+        const diff = nowVal.sub(last).abs();
+        // relative bps vs last value
+        const relBps = last.isZero() ? new BN(0) : diff.muln(10000).div(last);
+        if (relBps.lten(bps)) {
+          const since = Date.now() - (this.lastChangeAt.get(key) || Date.now());
+          if (since >= winMs) {
+            const netOut = netOutWithFees(nowVal);
+            const pnlLamports = netOut.sub(pos.costLamports);
+            const flatPnlPct = pos.costLamports.isZero() ? 0 : pnlLamports.muln(10000).div(pos.costLamports).toNumber() / 10000;
+            try {
+              store.simTradeClose({
+                mint: key,
+                closedAt: Math.floor(Date.now() / 1000),
+                closeReason: 'FLAT',
+                proceedsLamports: netOut.toString(),
+                pnlLamports: pnlLamports.toString(),
+                pnlPct: flatPnlPct,
+              });
+            } catch {}
+            this.positions.close(pos.mint);
+            logger.info('Sim position closed (FLAT)', { mint: key, flatSecs: this.cfg.simFlatSecs, flatBps: bps });
+            // cleanup
+            this.lastSolOut.delete(key);
+            this.lastChangeAt.delete(key);
+            return;
+          }
+        } else {
+          // significant move; update baseline
+          this.lastSolOut.set(key, nowVal);
+          this.lastChangeAt.set(key, Date.now());
+        }
       }
     }
   }

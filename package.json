@@ -10,7 +10,9 @@
     "typecheck": "tsc -p . --noEmit",
     "health:dev": "RUN_FOR_SECONDS=5 TRACKER_ENABLED=false SELL_ENABLED=false ts-node src/index.ts",
     "health": "RUN_FOR_SECONDS=5 TRACKER_ENABLED=false SELL_ENABLED=false node dist/index.js",
-    "test": "echo \"No tests in MVP\""
+    "test": "echo \"No tests in MVP\"",
+    "analytics": "ts-node src/scripts/analytics.ts",
+    "export:csv": "ts-node src/scripts/export_csv.ts"
   },
   "keywords": [],
   "author": "",
@@ -20,10 +22,10 @@
     "@pump-fun/pump-sdk": "^1.18.5",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
-    "jito-ts": "^4.2.0",
     "bn.js": "^5.2.2",
     "bs58": "^6.0.0",
-    "dotenv": "^17.2.2"
+    "dotenv": "^17.2.2",
+    "jito-ts": "^4.2.0"
   },
   "optionalDependencies": {
     "better-sqlite3": "^9.6.0"

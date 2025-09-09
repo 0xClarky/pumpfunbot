@@ -11,6 +11,7 @@ export type SocialInput = {
 export type SocialConfig = {
   requireImage: boolean;
   requireTwitterHandleMatch: boolean;
+  requireTwitterPresent: boolean; // new: require a twitter link but no handle/name match
   requireDescription: boolean;
   // Legacy head mode (optional)
   httpHeadTimeoutMs?: number;
@@ -150,16 +151,16 @@ export async function checkSocial(input: SocialInput, cfg: SocialConfig): Promis
     }
   }
 
-  // Twitter handle must include name or symbol
-  if (cfg.requireTwitterHandleMatch) {
+  // Twitter requirement
+  if (cfg.requireTwitterHandleMatch || cfg.requireTwitterPresent) {
     const handle = extractTwitterHandle(input.twitter);
     info.twitterHandle = handle;
-    const nm = alnumLower(input.name);
-    const sy = alnumLower(input.symbol);
-    const hd = alnumLower(handle || '');
     if (!handle) {
       reasons.push('no-twitter');
-    } else {
+    } else if (cfg.requireTwitterHandleMatch) {
+      const nm = alnumLower(input.name);
+      const sy = alnumLower(input.symbol);
+      const hd = alnumLower(handle || '');
       const ok = (nm && hd.includes(nm)) || (sy && hd.includes(sy));
       if (!ok) reasons.push('twitter-handle-mismatch');
     }
